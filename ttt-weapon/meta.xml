@@ -1,0 +1,21 @@
+<meta>
+    <info author="Gemini" type="script" name="ttt-weapon" version="1.0.0" />
+
+    <script src="shared/config.lua" type="shared" />
+    <script src="shared/utils.lua" type="shared" />
+
+    <script src="server/database.lua" type="server" />
+    <script src="server/damage_logic.lua" type="server" />
+    <script src="server/shop_and_reroll.lua" type="server" />
+    <script src="server/admin_core.lua" type="server" />
+    <script src="server/upgrade.lua" type="server" />
+
+    <script src="client/gui_main.lua" type="client" />
+    <script src="client/drag_drop.lua" type="client" />
+    <script src="client/damage_sync.lua" type="client" />
+
+    <file src="icons/*.png" />
+
+    <export function="getPlayerWeapons" type="server" />
+    <export function="giveWeaponToPlayer" type="server" />
+</meta>

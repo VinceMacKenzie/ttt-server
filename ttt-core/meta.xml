@@ -1,0 +1,10 @@
+<meta>
+    <info author="Gemini" type="script" version="1.0.0" name="Admin and TTT System" />
+    
+    <script src="sourceS.lua" type="server" />
+    <script src="sourceC.lua" type="client" />
+    
+    <aclrequest type="general" name="function.setElementData" />
+    <aclrequest type="general" name="function.getElementData" />
+    <export function="checkTTTWin" type="server" />
+</meta>

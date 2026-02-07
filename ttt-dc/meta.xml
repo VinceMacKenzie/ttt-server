@@ -1,0 +1,8 @@
+<meta>
+    <info author="Gemini" version="1.0" name="TTT Discord Bridge" />
+    <script src="server.lua" type="server" />
+    
+    <export function="sendAdminLog" type="server" />
+    <export function="sendMoneyLog" type="server" />
+    <export function="sendSkinLog" type="server" />
+</meta>

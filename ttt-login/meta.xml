@@ -1,0 +1,5 @@
+<meta>
+    <info author="Gemini" type="script" name="TTT Login System" version="1.0.0" />
+
+    <script src="sourceS.lua" type="server" />
+</meta>

@@ -1,0 +1,21 @@
+<meta>
+    <info author="Gemini" type="script" version="1.0.0" name="TTT Skin System" />
+
+    <script src="sourceC.lua" type="client" cache="false" />
+    <script src="sourceS.lua" type="server" />
+
+    <file src="skins/darth_maul.txd" />
+    <file src="skins/darth_maul.dff" />
+    <file src="skins/Ezio.txd" />
+    <file src="skins/Ezio.dff" />
+    <file src="skins/clay.txd" />
+    <file src="skins/clay.dff" />
+    <file src="skins/Chiss.txd" />
+    <file src="skins/Chiss.dff" />
+    <file src="skins/Gran.txd" />
+    <file src="skins/Gran.dff" />
+    <file src="skins/Weequay.txd" />
+    <file src="skins/Weequay.dff" />
+
+    <export function="toggleSkinShop" type="client" />
+</meta>

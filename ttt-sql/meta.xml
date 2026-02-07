@@ -1,0 +1,8 @@
+<meta>
+    <info author="Gemini" type="script" name="TTT SQL Handler" />
+    <script src="sourceS.lua" type="server" />
+    
+    <export function="dbQueryExec" type="server" />
+    <export function="dbQuery" type="server" />
+    <export function="getDatabaseHandler" type="server" />
+</meta>

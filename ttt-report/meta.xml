@@ -1,0 +1,7 @@
+<meta>
+    <info author="Gemini" type="script" name="TTT Report System" />
+    <script src="sourceS.lua" type="server" />
+    <script src="sourceC.lua" type="client" />
+
+    <export function="refreshAdminReports" type="server" />
+</meta>

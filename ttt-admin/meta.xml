@@ -1,0 +1,8 @@
+<meta>
+    <info author="Gemini" type="script" version="1.0.0" name="Admin and TTT System" />
+    
+    <script src="sourceS.lua" type="server" />
+    
+    <aclrequest type="general" name="function.setElementData" />
+    <aclrequest type="general" name="function.getElementData" />
+</meta>
