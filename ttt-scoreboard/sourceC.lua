@@ -1,6 +1,5 @@
 local screenW, screenH = guiGetScreenSize()
 local isVisible = false
-local playerJoinTimes = {}
 
 -- Színek és Konfiguráció
 local mainCyan = tocolor(0, 195, 255, 150)
@@ -22,7 +21,7 @@ local headers = {
     {n = "PING", w = 70, x = 690}
 }
 
-function drawCyberBorder(ax, ay, aw, ah, color, thickness)
+local function drawCyberBorder(ax, ay, aw, ah, color, thickness)
     local t = thickness
     local l = 20
     dxDrawLine(ax, ay, ax + l, ay, color, t)
@@ -35,16 +34,17 @@ function drawCyberBorder(ax, ay, aw, ah, color, thickness)
     dxDrawLine(ax + aw, ay + ah, ax + aw, ay + ah - l, color, t)
 end
 
-function formatTime(ms)
-    local totalsecs = math.floor((ms or 0) / 1000)
+local function formatTime(totalsecs)
+    totalsecs = math.max(0, math.floor(totalsecs or 0))
     return string.format("%02d:%02d:%02d", math.floor(totalsecs / 3600), math.floor((totalsecs % 3600) / 60), totalsecs % 60)
 end
 
-function formatNumber(amount)
+local function formatNumber(amount)
     local formatted = tostring(math.floor(amount or 0))
-    while true do  
+    while true do
+        local k
         formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
-        if (k == 0) then break end
+        if k == 0 then break end
     end
     return formatted
 end
@@ -53,6 +53,7 @@ addEventHandler("onClientRender", root, function()
     if not isVisible then return end
 
     local players = getElementsByType("player")
+    local now = getRealTime().timestamp
     local rowHeight = 35
     local headerHeight = 40
     local width = 800
@@ -99,18 +100,15 @@ addEventHandler("onClientRender", root, function()
         -- Értékek (szintén default fonttal a biztonság kedvéért)
         dxDrawText("$" .. formatNumber(getPlayerMoney(p)), x + 400, py + 10, 0, 0, mainGreen, 1, "default-bold")
         
-        if not playerJoinTimes[p] then playerJoinTimes[p] = getTickCount() end
-        dxDrawText(formatTime(getTickCount() - playerJoinTimes[p]), x + 530, py + 10, 0, 0, tocolor(200, 200, 200, 255), 1, "default-bold")
+        -- Valódi játékidő: a szerver a belépéskor elmenti a "joinTime"-ot (unix mp)
+        local joinTime = tonumber(getElementData(p, "joinTime")) or now
+        dxDrawText(formatTime(now - joinTime), x + 530, py + 10, 0, 0, tocolor(200, 200, 200, 255), 1, "default-bold")
         
         local ping = getPlayerPing(p)
         dxDrawText(ping .. " MS", x + 690, py + 10, 0, 0, (ping > 100 and tocolor(231, 76, 60) or tocolor(200, 200, 200)), 1, "default-bold")
         
         dxDrawLine(x + 15, py + rowHeight, x + width - 15, py + rowHeight, tocolor(0, 195, 255, 15), 1)
     end
-end)
-
-addEventHandler("onClientPlayerQuit", root, function()
-    playerJoinTimes[source] = nil
 end)
 
 bindKey("tab", "both", function(k, state) 

@@ -10,11 +10,12 @@ local announceText, announceStart = "", 0
 local announceColor = {255, 255, 255}
 local announceDuration = 5000
 
-function formatNumber(amount)
-    local formatted = tostring(math.floor(amount + 0.5)) 
-    while true do  
+local function formatNumber(amount)
+    local formatted = tostring(math.floor(amount + 0.5))
+    while true do
+        local k
         formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
-        if (k == 0) then break end
+        if k == 0 then break end
     end
     return formatted
 end
@@ -43,7 +44,8 @@ function drawTTTHud()
     local money = getPlayerMoney(player)
     local ping = getPlayerPing(player)
     local role = getElementData(player, "tttRole") or "Innocent"
-    local timeStr = string.format("%02d:%02d", getRealTime().hour, getRealTime().minute)
+    local rt = getRealTime()
+    local timeStr = string.format("%02d:%02d", rt.hour, rt.minute)
 
     -- Animációk
     lerpHP = lerpHP + (health - lerpHP) * 0.1
@@ -132,7 +134,7 @@ addEventHandler("onClientRender", root, function()
     for i, v in ipairs(peds) do table.insert(elements, v) end
 
     for _, target in ipairs(elements) do
-        if target ~= localPlayer then
+        if target ~= localPlayer and not getElementData(target, "isCorpse") and not getElementData(target, "isReplayPed") then
             local tx, ty, tz = getElementPosition(target)
             local dist = getDistanceBetweenPoints3D(cx, cy, cz, tx, ty, tz)
 
@@ -144,7 +146,7 @@ addEventHandler("onClientRender", root, function()
                         local fontSize = 2 * scale
                         local alpha = 255 * scale
                         local name = getElementData(target, "npcName") or getPlayerName(target)
-                        local adminLvl = getElementData(target, "adminLevel") or 0
+                        local adminLvl = tonumber(getElementData(target, "admin")) or 0
                         
                         -- HA AZ ADMIN LÁTMÓD BE VAN KAPCSOLVA (MINDENKI SZEREPÉT LÁTOD)
                         if adminVision then
@@ -203,10 +205,8 @@ addEventHandler("onClientElementDataChange", localPlayer, function(dataName)
 end)
 
 addEventHandler("onClientResourceStart", resourceRoot, function()
-    setPlayerHudComponentVisible("all", false)    -- Életerő
-    setPlayerHudComponentVisible("crosshair", true)    -- Életerő
+    setPlayerHudComponentVisible("all", false)      -- alap HUD elrejtése
+    setPlayerHudComponentVisible("crosshair", true) -- célkereszt marad
 end)
 
-bindKey("m", "down", function()
-    local currentState = showCursor(not isCursorShowing()) -- Megfordítja az aktuális állapotot
-end)
+-- Az "M" kurzor bind a ttt-core-ban van (itt duplán volt, és a két bind kioltotta egymást).

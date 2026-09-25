@@ -28,7 +28,7 @@ guiSetVisible(msgInput, false)
 guiSetAlpha(msgInput, 0)
 guiSetProperty(msgInput, "MaxTextLength", "100")
 
-function drawCyberBorder(ax, ay, aw, ah, color, thickness)
+local function drawCyberBorder(ax, ay, aw, ah, color, thickness)
     local l = 20
     dxDrawLine(ax, ay, ax + l, ay, color, thickness)
     dxDrawLine(ax, ay, ax, ay + l, color, thickness)
@@ -85,8 +85,8 @@ addEventHandler("onClientRender", root, function()
                     borderColor = tocolor(226, 247, 0, 200)
                     rankName = "SYSTEM"
                 elseif not msg.Messager:find("GUEST") then
-                    local displayLvl = (msg.Messager == getPlayerName(localPlayer):upper()) and adminLvl or 1
-                    local cfg = adminColors[displayLvl] or adminColors[1]
+                    -- A szerver elmenti az üzenethez az admin szintet (AdminLevel oszlop)
+                    local cfg = adminColors[tonumber(msg.AdminLevel) or 1] or adminColors[1]
                     boxColor = tocolor(cfg.r, cfg.g, cfg.b, 40)
                     borderColor = tocolor(cfg.r, cfg.g, cfg.b, 255)
                     rankName = cfg.name

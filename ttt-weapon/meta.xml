@@ -1,5 +1,5 @@
 <meta>
-    <info author="Gemini" type="script" name="ttt-weapon" version="1.0.0" />
+    <info author="Gemini" type="script" name="ttt-weapon" version="1.1.0" />
 
     <script src="shared/config.lua" type="shared" />
     <script src="shared/utils.lua" type="shared" />
@@ -11,7 +11,6 @@
     <script src="server/upgrade.lua" type="server" />
 
     <script src="client/gui_main.lua" type="client" />
-    <script src="client/drag_drop.lua" type="client" />
     <script src="client/damage_sync.lua" type="client" />
 
     <file src="icons/*.png" />
