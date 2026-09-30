@@ -1,6 +1,6 @@
 # MTA:SA TTT szerver – projekt áttekintés és állapot
 
-*Frissítve: 2026-09-11 – kódátnézés, optimalizálás és Paddy kérései (login, fixadmin, opt rendszer, replay) után. Az eredeti fájlok a `_backup_original/` mappában vannak.*
+*Frissítve: 2026-09-11 – kódátnézés, optimalizálás és Paddy kérései (login, fixadmin, opt rendszer, replay) után. Az eredeti fájlok a `_backup_original/` mappában vannak (git-ben nincs, a history őrzi az eredetit).*
 
 ## Architektúra
 
@@ -41,7 +41,7 @@ Függőségi sorrend indításnál: **ttt-sql → ttt-login → ttt-admin → tt
 
 **ttt-weapon** – Perzisztens fegyver-inventory (`weapons` tábla): `F2` drag&drop GUI, 20 táska-slot + 5 aktív slot típuskorlátozással, fegyverenként serial, durability, sebzés-módosítók (fej/test/kar/láb), buffok (tűz, sokk, méreg, életszívás), átkok. Fejlesztő itemek (`inventory` tábla: opt_adder, opt_changer, curse_remover) húzással a fegyverre. Admin: `/giveweapon`, `/setweaponstat`, `/delweapon`, `/giveopt [Név] [db]`, `/giveitem [Név] [opt_adder|opt_changer|curse_remover] [db]`, `/stats`. Az aktív slotban lévő fegyverek statjai modell szerint cache-elve (`equippedByModel`), a sebzéslogika a kézben lévő fegyver modelljét ebből olvassa szinkron módon. Itemek: `opt_adder` új opt, `opt_changer` a meglévő optok újrapörgetése (+ buff csere), `curse_remover` átkok törlése.
 
-**ttt-replay** – Kör-visszajátszás. A szerver 5×/mp rögzíti minden játékos pozícióját, forgását, fegyverét, él-e/guggol-e, plusz az öléseket; az utolsó 3 kört tartja memóriában. `/replay [1-3]` (Admin+, csak körön kívül/halottként) a felvételt a kérő kliensre küldi, ahol **kliensoldali pedek** játsszák vissza interpolálva (csak a néző látja): név/szerep/fegyver címke, halál animáció, esemény-lista, SPACE szünet, ←/→ ugrás, NUM+/- sebesség, F7 kamera-követés váltás, `/replaystop`, `/replays` lista.
+**ttt-replay** (v2) – Kör-visszajátszás. A szerver 5×/mp rögzíti minden játékos pozícióját, forgását, fegyverét, él-e/guggol-e, mozgásállapotát (áll/sétál/fut/sprintel), célzását, és a **kliens által 5 Hz-en felküldött kameramátrixát**, plusz az öléseket. Kör végén JSON-be menti: `ttt-replay/replays/replay_ÉÉÉÉ-HH-NN_ÓÓ-PP-MM.json` (+ `index.json` lista, max 50 fájl, a legrégebbi törlődik). `/replays` lista, `/replay [n]` (Admin+, körön kívül/halottként): a néző **saját dimenzióba** kerül (60000+), láthatatlanul, a felvételt `triggerLatentClientEvent` küldi; kliensoldali pedek játsszák vissza interpolálva, fegyverrel a kézben (`givePedWeapon`), célzó pózzal (`setPedAimTarget`), séta/futás/sprint/guggolás animációval, halál-animációval. Kameramódok (F8): a követett játékos **eredeti kamerája**, váll mögül, szabad. F7 játékosváltás, SPACE szünet, ←/→ 5 mp, NUM+/− sebesség, ESC vagy `/replaystop` kilépés (visszarak az eredeti dimenzióba/pozícióba). Új kör indulásakor minden nézőt automatikusan kiléptet.
 
 ## Mi készült el a 2026-09-10-es átnézésben
 
@@ -58,7 +58,11 @@ Optimalizálás: render handlerek csak nyitott GUI-nál futnak (shop, skin, inve
 3. *Opt rendszer néha nem érzékeli az M4-et* → az ok: fegyverváltáskor aszinkron SQL lekérdezés töltötte a statot, ami későn/nem futott le. Most a slotban lévő fegyverek statjai modellenként cache-ben vannak, a találatkor szinkron olvassuk. Belépéskor és minden slot-módosításkor frissül.
 4. *Opt forgató nem működik* → az `opt_changer` item eddig nem volt implementálva (csak `opt_adder`); most a meglévő optokat pörgeti újra és a buffot cseréli. `curse_remover` is működik.
 5. */giveopt [Név] [mennyiség]* → kész (Admin+), névrészletre is keres; `/giveitem`-mel a másik két item is adható.
-6. *Replay rendszer NPC-kkel* → új `ttt-replay` resource (részletek fent). MVP: fegyver a ped kezében nem jelenik meg (kliensoldali pednek nem adható fegyver), csak a címkén; lövés/animáció nincs rögzítve.
+6. *Replay rendszer NPC-kkel* → új `ttt-replay` resource (részletek fent).
+
+## 2026-09-30 – Replay v2 (Daniel kérései)
+
+Forgás + animáció (séta/futás/sprint/guggolás, célzó póz), fegyver a ped kezében (`givePedWeapon` kliensoldali pedre működik), JSON mentés dátumozott fájlokba index listával, a játékos saját kameramozgásának rögzítése és visszajátszása (a kliens 5 Hz-en küldi a `getCameraMatrix`-ot), a néző külön dimenzióban nézi (nem látja az élő játékosokat és ők sem őt).
 
 ## Hátralévő / ismert hiányosságok (teendők)
 
@@ -67,7 +71,7 @@ Optimalizálás: render handlerek csak nyitott GUI-nál futnak (shop, skin, inve
 3. **Szerep láthatóság**: a `tttRole` elementData minden klienshez szinkronizálódik → cheat klienssel látható ki a Traitor. Megoldás: `setElementData(..., false)` + saját szerep külön `triggerClientEvent`-tel, admin látmódhoz szerveres lista.
 4. **Név helyett serial/charID kulcs** az `owned_skins`, `weapons`, `inventory` táblákban (névváltásnál elveszik minden).
 5. Skill fejlesztések (`setPedStat`) nincsenek perzisztálva – újracsatlakozásnál elvesznek, újra megvehetők.
-6. Átok-generálás (mikor kap átkot egy fegyver), piac (`is_on_market`), pénzes reroll UI nincs implementálva. Replay: fegyver a ped kezében, lövés-effekt, felvétel mentése fájlba/DB-be (most csak memória, restartnál elveszik).
+6. Átok-generálás (mikor kap átkot egy fegyver), piac (`is_on_market`), pénzes reroll UI nincs implementálva. Replay: lövés-effekt/hang, gránát/C4 objektumok, jármű nincs rögzítve; a kamera adat csak a kör alatt élő játékosoktól jön.
 7. Halott játékosok spectate módja (most csak fagyva állnak a térkép alatt).
 8. Report: a bejelentő nem látja az admin válaszát.
 9. Jelszó a kódból `mtaserver.conf`-ba: `<setting name="*ttt-sql.db_pass" value="..."/>`.

@@ -1,5 +1,6 @@
 <meta>
-    <info author="Gemini" type="script" version="1.0.0" name="TTT Replay" />
+    <info author="Gemini" type="script" version="2.0.0" name="TTT Replay" />
     <script src="sourceS.lua" type="server" />
     <script src="sourceC.lua" type="client" />
+    <!-- A replays/ mappába kerülnek a mentett körök (JSON), szerveroldalon -->
 </meta>

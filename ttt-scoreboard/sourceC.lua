@@ -98,7 +98,9 @@ addEventHandler("onClientRender", root, function()
         end
 
         -- Értékek (szintén default fonttal a biztonság kedvéért)
-        dxDrawText("$" .. formatNumber(getPlayerMoney(p)), x + 400, py + 10, 0, 0, mainGreen, 1, "default-bold")
+        -- Kliensoldalon a getPlayerMoney() csak a SAJÁT pénzt adja vissza (nincs player paramétere),
+        -- ezért a szerver által szinkronizált "money" elementData-t olvassuk
+        dxDrawText("$" .. formatNumber(tonumber(getElementData(p, "money")) or 0), x + 400, py + 10, 0, 0, mainGreen, 1, "default-bold")
         
         -- Valódi játékidő: a szerver a belépéskor elmenti a "joinTime"-ot (unix mp)
         local joinTime = tonumber(getElementData(p, "joinTime")) or now
