@@ -22,7 +22,16 @@ addEventHandler("onClientRender", root, function()
     -- Csak ha élünk és van szerepünk (halottak kamerája nem érdekes)
     if not getElementData(localPlayer, "tttRole") or isPedDead(localPlayer) then return end
     local cx, cy, cz, lx, ly, lz = getCameraMatrix()
-    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz)
+    -- Mozgásállapot: 0 áll, 1 sétál, 2 fut, 3 sprintel (a control state csak kliensen kérdezhető le)
+    local vx, vy, vz = getElementVelocity(localPlayer)
+    local move = 0
+    if (vx * vx + vy * vy + vz * vz) >= 0.0004 then
+        if getPedControlState("sprint") then move = 3
+        elseif getPedControlState("walk") then move = 1
+        else move = 2 end
+    end
+    local aim = getPedControlState("aim_weapon") and 1 or 0
+    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim)
 end)
 
 -- ---------- VISSZAJÁTSZÁS ----------

@@ -17,6 +17,7 @@ local recTimer = nil
 local lastCam = {}              -- [player] = {cx,cy,cz,lx,ly,lz}
 local index = {}                -- [1] = legutóbbi: {file, date, dateStr, winner, length, players, events}
 local viewers = {}              -- [player] = {dim, int, x, y, z}
+local recordFrame               -- előre deklarálva (a /replaysave is használja)
 
 addEvent("ttt:onRoundStart", false)
 addEvent("ttt:onRoundEnd", false)
@@ -45,16 +46,24 @@ local function saveIndex()
     fileClose(f)
 end
 
-local function saveRecording(rec)
+local lastError = nil
+local lastSaved = nil
+
+local function saveRecordingUnsafe(rec)
     local rt = getRealTime(rec.date)
     local dateStr = string.format("%04d-%02d-%02d_%02d-%02d-%02d", rt.year + 1900, rt.month + 1, rt.monthday, rt.hour, rt.minute, rt.second)
     local fileName = "replays/replay_" .. dateStr .. ".json"
 
+    local json = toJSON(rec, true)
+    if not json then
+        error("toJSON sikertelen (túl nagy vagy nem szerializálható felvétel)")
+    end
+
     local f = fileCreate(fileName)
     if not f then
-        return outputDebugString("[Replay] Nem sikerült létrehozni: " .. fileName, 1)
+        error("fileCreate sikertelen: " .. fileName .. " (létezik a ttt-replay/replays mappa? írható a resource mappa?)")
     end
-    fileWrite(f, toJSON(rec, true))
+    fileWrite(f, json)
     fileClose(f)
 
     local n = 0
@@ -68,7 +77,18 @@ local function saveRecording(rec)
         if old.file and fileExists(old.file) then fileDelete(old.file) end
     end
     saveIndex()
+    lastSaved = fileName
     outputDebugString("[Replay] Mentve: " .. fileName .. " (" .. math.floor(rec.length / 1000) .. " mp, " .. n .. " játékos)")
+end
+
+-- Mentés hibavédetten: ha bármi elszáll (toJSON, fájl írás), a hiba a konzolba és a /replaydebug-ba kerül
+local function saveRecording(rec)
+    local ok, err = pcall(saveRecordingUnsafe, rec)
+    if not ok then
+        lastError = tostring(err)
+        outputDebugString("[Replay] MENTÉSI HIBA: " .. lastError, 1)
+        outputChatBox("#d9534f[Replay] #ffffffA kör mentése nem sikerült, nézd meg a szerver konzolt! (" .. lastError .. ")", root, 255, 255, 255, true)
+    end
 end
 
 local function loadRecording(entry)
@@ -80,27 +100,68 @@ local function loadRecording(entry)
     return fromJSON(data)
 end
 
-addEventHandler("onResourceStart", resourceRoot, loadIndex)
+addEventHandler("onResourceStart", resourceRoot, function()
+    loadIndex()
+    outputDebugString("[Replay] Indítva, mentett körök az indexben: " .. #index .. " (index fájl: " .. tostring(fileExists(INDEX_FILE)) .. ")")
+end)
+
+-- /replaydebug - állapot kiírása hibakereséshez (Admin+)
+addCommandHandler("replaydebug", function(p)
+    if p and getElementType(p) == "player" and (tonumber(getElementData(p, "admin")) or 0) < 1 then return end
+    local lines = {}
+    if recording then
+        local n, frames = 0, 0
+        for _, tr in pairs(recording.players) do n = n + 1; frames = frames + #tr.frames end
+        table.insert(lines, "Felvétel: AKTÍV | " .. n .. " játékos, " .. frames .. " frame, " .. #recording.events .. " esemény, " .. math.floor((getTickCount() - recording.startTick) / 1000) .. " mp")
+    else
+        table.insert(lines, "Felvétel: nincs (kör közben indul a ttt:onRoundStart eventre)")
+    end
+    table.insert(lines, "Index: " .. #index .. " bejegyzés | index.json létezik: " .. tostring(fileExists(INDEX_FILE)))
+    table.insert(lines, "Utolsó mentés: " .. tostring(lastSaved) .. " | utolsó hiba: " .. tostring(lastError))
+    table.insert(lines, "Kamera adat érkezett: " .. (function() local c = 0 for _ in pairs(lastCam) do c = c + 1 end return c end)() .. " játékostól")
+    for _, l in ipairs(lines) do
+        if p and getElementType(p) == "player" then outputChatBox("#00c3ff[ReplayDebug] #ffffff" .. l, p, 255, 255, 255, true) else print("[ReplayDebug] " .. l) end
+    end
+end)
+
+-- /replaysave - az aktuális (futó) felvétel azonnali mentése teszthez (Admin+)
+addCommandHandler("replaysave", function(p)
+    if p and getElementType(p) == "player" and (tonumber(getElementData(p, "admin")) or 0) < 1 then return end
+    if not recording then
+        if p then outputChatBox("#d9534f[Replay] #ffffffNincs futó felvétel.", p, 255, 255, 255, true) end
+        return
+    end
+    recordFrame()
+    local copy = {}
+    for k, v in pairs(recording) do copy[k] = v end
+    copy.winner = "teszt"
+    copy.length = getTickCount() - recording.startTick
+    copy.startTick = nil
+    saveRecording(copy)
+    if p then outputChatBox("#00c3ff[Replay] #ffffffMentés megkísérelve, lásd /replays és a konzol.", p, 255, 255, 255, true) end
+end)
 
 -----------------------------------------
 -- FELVÉTEL
 -----------------------------------------
 -- A kliens 5 Hz-en küldi a saját kamerájának mátrixát
-addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz)
+-- A kliens 5 Hz-en küldi: kamera mátrix + mozgásállapot + célzás
+-- (a getPedControlState CSAK kliensoldalon létezik, ezért ezeket a kliens számolja)
+addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz, move, aim)
     if not client or not recording then return end
     if type(cx) ~= "number" or type(lz) ~= "number" then return end
-    lastCam[client] = { round2(cx), round2(cy), round2(cz), round2(lx), round2(ly), round2(lz) }
+    lastCam[client] = { round2(cx), round2(cy), round2(cz), round2(lx), round2(ly), round2(lz),
+        move = tonumber(move) or 0, aim = tonumber(aim) or 0 }
 end)
 
-local function getMoveState(p)
+-- Ha (még) nincs kliens adat: csak áll/mozog a sebességből
+local function getMoveStateFallback(p)
     local vx, vy, vz = getElementVelocity(p)
     if (vx * vx + vy * vy + vz * vz) < 0.0004 then return 0 end
-    if getPedControlState(p, "sprint") then return 3 end
-    if getPedControlState(p, "walk") then return 1 end
     return 2
 end
 
-local function recordFrame()
+recordFrame = function()
     if not recording then return end
     local t = getTickCount() - recording.startTick
     for _, p in ipairs(getElementsByType("player")) do
@@ -115,12 +176,13 @@ local function recordFrame()
         local alive = (not isPedDead(p)) and (getElementData(p, "tttRole") ~= false) and 1 or 0
         local cam = lastCam[p]
         if not cam then
-            -- Még nem jött kamera adat: a fej mögötti pontot használjuk
-            cam = { round2(x + math.sin(math.rad(rz)) * 3), round2(y - math.cos(math.rad(rz)) * 3), round2(z + 1.5), round2(x), round2(y), round2(z + 0.7) }
+            -- Még nem jött kliens adat: a fej mögötti pontot használjuk
+            cam = { round2(x + math.sin(math.rad(rz)) * 3), round2(y - math.cos(math.rad(rz)) * 3), round2(z + 1.5),
+                round2(x), round2(y), round2(z + 0.7), move = getMoveStateFallback(p), aim = 0 }
         end
         table.insert(track.frames, {
-            t, round2(x), round2(y), round2(z), math.floor(rz), getPedWeapon(p), alive, isPedDucked(p) and 1 or 0,
-            getMoveState(p), getPedControlState(p, "aim_weapon") and 1 or 0,
+            t, round2(x), round2(y), round2(z), math.floor(rz), getPedWeapon(p) or 0, alive, isPedDucked(p) and 1 or 0,
+            cam.move, cam.aim,
             cam[1], cam[2], cam[3], cam[4], cam[5], cam[6],
         })
     end
@@ -139,11 +201,14 @@ addEventHandler("ttt:onRoundStart", root, function(duration)
     if isTimer(recTimer) then killTimer(recTimer) end
     recTimer = setTimer(recordFrame, FRAME_MS, 0)
     recordFrame()
+    outputDebugString("[Replay] Felvétel elindult (" .. tostring(duration) .. " mp-es kör)")
 end)
 
 addEventHandler("ttt:onRoundEnd", root, function(winner)
     triggerClientEvent(root, "ttt:replayRecording", root, false)
-    if not recording then return end
+    if not recording then
+        return outputDebugString("[Replay] Kör vége, de nem volt aktív felvétel (a resource kör közben indult?)", 2)
+    end
     if isTimer(recTimer) then killTimer(recTimer) end
     recordFrame()
     recording.winner = winner
