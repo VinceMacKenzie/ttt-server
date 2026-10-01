@@ -2,7 +2,9 @@
 -- TTT REPLAY - SZERVER: a kör rögzítése + JSON mentés + néző dimenzió kezelés
 --
 -- Frame (tömb, hogy kicsi legyen a JSON):
---  { t, x, y, z, rz, weapon, alive, ducked, move, aim, cx, cy, cz, lx, ly, lz, fire }
+--  { t, x, y, z, rz, weapon, alive, ducked, move, aim, cx, cy, cz, lx, ly, lz, fire, tx, ty, tz }
+--   tx,ty,tz: a célzott pont a világban (ahova a játékos tényleg célzott)
+--   jump: 0 nincs, 1 ugrik, 2 mászik (21. mező)
 --   move: 0 áll, 1 sétál, 2 fut, 3 sprintel   aim: 1 ha célzott   fire: 1 ha lőtt az elmúlt 200 ms-ban
 --   cx..lz: a JÁTÉKOS kamerája (pozíció + nézett pont) - a kliens küldi 5 Hz-en
 -- Fájlok: replays/replay_ÉÉÉÉ-HH-NN_ÓÓ-PP-MM.json + replays/index.json
@@ -147,11 +149,13 @@ end)
 -- A kliens 5 Hz-en küldi a saját kamerájának mátrixát
 -- A kliens 5 Hz-en küldi: kamera mátrix + mozgásállapot + célzás
 -- (a getPedControlState CSAK kliensoldalon létezik, ezért ezeket a kliens számolja)
-addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz, move, aim, fire)
+addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz, move, aim, fire, tx, ty, tz, jump)
     if not client or not recording then return end
     if type(cx) ~= "number" or type(lz) ~= "number" then return end
     lastCam[client] = { round2(cx), round2(cy), round2(cz), round2(lx), round2(ly), round2(lz),
-        move = tonumber(move) or 0, aim = tonumber(aim) or 0, fire = tonumber(fire) or 0 }
+        move = tonumber(move) or 0, aim = tonumber(aim) or 0, fire = tonumber(fire) or 0,
+        tx = tonumber(tx) and round2(tx) or 0, ty = tonumber(ty) and round2(ty) or 0, tz = tonumber(tz) and round2(tz) or 0,
+        jump = tonumber(jump) or 0 }
 end)
 
 -- Ha (még) nincs kliens adat: csak áll/mozog a sebességből
@@ -184,7 +188,8 @@ recordFrame = function()
             t, round2(x), round2(y), round2(z), math.floor(rz), getPedWeapon(p) or 0, alive, isPedDucked(p) and 1 or 0,
             cam.move, cam.aim,
             cam[1], cam[2], cam[3], cam[4], cam[5], cam[6],
-            cam.fire or 0,
+            cam.fire or 0, cam.tx or 0, cam.ty or 0, cam.tz or 0,
+            cam.jump or 0,
         })
     end
 end
@@ -258,6 +263,7 @@ local function restoreViewer(p)
     setElementInterior(p, v.int)
     setElementPosition(p, v.x, v.y, v.z)
     setElementAlpha(p, 255)
+    setElementFrozen(p, v.frozen or false)
 end
 
 addEventHandler("ttt:replayEnded", root, function()
@@ -287,10 +293,12 @@ addCommandHandler("replay", function(p, cmd, idx)
     if viewers[p] then restoreViewer(p) end
     local x, y, z = getElementPosition(p)
     local dim = freeDimension()
-    viewers[p] = { dim = dim, dim0 = getElementDimension(p), int = getElementInterior(p), x = x, y = y, z = z }
+    viewers[p] = { dim = dim, dim0 = getElementDimension(p), int = getElementInterior(p), x = x, y = y, z = z, frozen = isElementFrozen(p) }
     setElementDimension(p, dim)
     setElementInterior(p, 0)
     setElementAlpha(p, 0)
+    -- Halott (lefagyasztott, térkép alatti) néző is tudjon a felvétel helyére kerülni, hogy a világ és a pedek streamelődjenek
+    setElementFrozen(p, false)
 
     rec.dimension = dim
     rec.fileName = entry.file

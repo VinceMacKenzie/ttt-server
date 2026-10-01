@@ -34,7 +34,27 @@ addEventHandler("onClientRender", root, function()
     local aim = getControlState("aim_weapon") and 1 or 0
     local fire = firedSinceLastSend and 1 or 0
     firedSinceLastSend = false
-    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim, fire)
+    -- Célzott pont: ahova a játékos ténylegesen céloz (a kamera sugara mentén az első találat, max 300 m)
+    local tx, ty, tz = 0, 0, 0
+    if aim == 1 then
+        local dx, dy, dz = lx - cx, ly - cy, lz - cz
+        local len = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if len > 0 then
+            local ex, ey, ez = cx + dx / len * 300, cy + dy / len * 300, cz + dz / len * 300
+            local hit, hx, hy, hz = processLineOfSight(cx, cy, cz, ex, ey, ez, true, true, true, true, true, false, false, false, localPlayer)
+            if hit then tx, ty, tz = hx, hy, hz else tx, ty, tz = ex, ey, ez end
+        end
+    end
+    -- Ugrás / mászás a ped taskjaiból
+    local jump = 0
+    for slot = 0, 4 do
+        local task = getPedTask(localPlayer, "primary", slot)
+        if task then
+            if task:find("CLIMB") then jump = 2 break end
+            if task:find("JUMP") then jump = 1 end
+        end
+    end
+    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim, fire, tx, ty, tz, jump)
 end)
 
 addEventHandler("onClientPlayerWeaponFire", localPlayer, function()
@@ -60,7 +80,7 @@ local weaponNames = {
 }
 
 -- Frame mezők indexei
-local F_T, F_X, F_Y, F_Z, F_RZ, F_WEP, F_ALIVE, F_DUCK, F_MOVE, F_AIM, F_CX, F_CY, F_CZ, F_LX, F_LY, F_LZ, F_FIRE = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+local F_T, F_X, F_Y, F_Z, F_RZ, F_WEP, F_ALIVE, F_DUCK, F_MOVE, F_AIM, F_CX, F_CY, F_CZ, F_LX, F_LY, F_LZ, F_FIRE, F_TX, F_TY, F_TZ, F_JUMP = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21
 
 local function stopReplay()
     if not replay then return end
@@ -90,10 +110,13 @@ local function sampleTrack(d, t)
     if not b or b[F_T] == a[F_T] then return a end
     local f = (t - a[F_T]) / (b[F_T] - a[F_T])
     local s = d.sample
-    for k = 1, 17 do s[k] = a[k] end
+    for k = 1, 21 do s[k] = a[k] end
     s[F_X], s[F_Y], s[F_Z] = lerp(a[F_X], b[F_X], f), lerp(a[F_Y], b[F_Y], f), lerp(a[F_Z], b[F_Z], f)
     s[F_RZ] = lerpAngle(a[F_RZ], b[F_RZ], f)
     for k = F_CX, F_LZ do s[k] = lerp(a[k], b[k], f) end
+    if a[F_TX] and b[F_TX] and a[F_TX] ~= 0 and b[F_TX] ~= 0 then
+        for k = F_TX, F_TZ do s[k] = lerp(a[k], b[k], f) end
+    end
     return s
 end
 
@@ -151,15 +174,19 @@ local function applyPedState(d, s, dt)
     -- Célzás a kamera irányába + piros vonal
     local aiming = (s[F_AIM] == 1 and wep > 0)
     local facing = s[F_RZ]
-    d.aimDir = nil
+    d.aimPoint = nil
     if aiming then
-        local ax, ay, az = s[F_LX] - s[F_CX], s[F_LY] - s[F_CY], s[F_LZ] - s[F_CZ]
-        local len = math.sqrt(ax * ax + ay * ay + az * az)
-        if len > 0 then
-            ax, ay, az = ax / len, ay / len, az / len
-            setPedAimTarget(ped, s[F_X] + ax * 40, s[F_Y] + ay * 40, s[F_Z] + 0.6 + az * 40)
-            facing = getRotationTo(0, 0, ax, ay)
-            d.aimDir = { ax, ay, az }
+        local tx, ty, tz = s[F_TX], s[F_TY], s[F_TZ]
+        if not tx or (tx == 0 and ty == 0 and tz == 0) then
+            -- régi felvétel: a kamera irányába 40 m
+            local ax, ay, az = s[F_LX] - s[F_CX], s[F_LY] - s[F_CY], s[F_LZ] - s[F_CZ]
+            local len = math.sqrt(ax * ax + ay * ay + az * az)
+            if len > 0 then tx, ty, tz = s[F_X] + ax / len * 40, s[F_Y] + ay / len * 40, s[F_Z] + 0.6 + az / len * 40 end
+        end
+        if tx then
+            setPedAimTarget(ped, tx, ty, tz)
+            facing = getRotationTo(s[F_X], s[F_Y], tx, ty)
+            d.aimPoint = { tx, ty, tz }
         end
     elseif moving then
         facing = getRotationTo(0, 0, mx, my)
@@ -167,8 +194,30 @@ local function applyPedState(d, s, dt)
 
     -- Simított forgás
     d.rot = d.rot and lerpAngle(d.rot, facing, ROT_SMOOTH) or facing
-    setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
     setPedRotation(ped, d.rot)
+
+    -- Pozíció: mozgás közben a ped saját járása viszi, csak akkor igazítunk, ha eltér (nem rángatjuk minden képkockán)
+    -- Ugrás / mászás: a "jump" egy impulzus; a GTA maga mászik, ha akadály van előtte.
+    -- Amíg tart, nem igazítjuk a pozíciót (különben megszakadna az animáció).
+    local jumpState = s[F_JUMP] or 0
+    if jumpState > 0 and (d.lastJump or 0) ~= jumpState then
+        d.lastJump = jumpState
+        d.jumpUntil = getTickCount() + (jumpState == 2 and 1500 or 900)
+        setPedControlState(ped, "jump", true)
+        setTimer(function(pd) if isElement(pd) then setPedControlState(pd, "jump", false) end end, 60, 1, ped)
+    elseif jumpState == 0 then
+        d.lastJump = 0
+    end
+    local inJump = d.jumpUntil and getTickCount() < d.jumpUntil
+
+    local px, py, pz = getElementPosition(ped)
+    local ex, ey, ez = s[F_X] - px, s[F_Y] - py, s[F_Z] - pz
+    local err = math.sqrt(ex * ex + ey * ey)
+    local tol = inJump and 2.5 or (moving and 0.25 or 0.08)
+    local ztol = inJump and 3.0 or 0.6
+    if err > tol or math.abs(ez) > ztol then
+        setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
+    end
 
     -- Control state-ek (csak animációhoz)
     setPedControlState(ped, "aim_weapon", aiming)
@@ -197,32 +246,27 @@ local function applyPedState(d, s, dt)
         setPedControlState(ped, "walk", false)
     end
 
-    -- Guggolás. Pednél a "crouch" lenyomva tartása guggolást jelent; ha a GTA kapcsolóként
-    -- kezelné, az "elengedés + újranyomás" ág oldja meg: ha 400 ms után sincs a kívánt állapotban, újra nyomjuk.
+    -- Guggolás: a "crouch"-ot NEM szabad nyomva tartani (a ped feláll tőle, MTA #488),
+    -- egy rövid "lenyom + 50 ms múlva elenged" impulzus kell, és csak akkor, ha az állapot eltér.
     local wantDuck = (s[F_DUCK] == 1)
-    local isDuck = isPedDucked(ped)
     local now = getTickCount()
-    if wantDuck == isDuck then
-        d.duckSince = nil
-        setPedControlState(ped, "crouch", wantDuck)
-    else
-        d.duckSince = d.duckSince or now
-        if now - d.duckSince > 400 then
-            -- újranyomás: egy képkockára elengedjük
-            setPedControlState(ped, "crouch", false)
-            d.duckSince = now
-        else
-            setPedControlState(ped, "crouch", true)
-        end
+    if wantDuck ~= isPedDucked(ped) and (now - (d.lastDuckPress or 0)) > 350 then
+        d.lastDuckPress = now
+        setPedControlState(ped, "crouch", true)
+        setTimer(function(pd)
+            if isElement(pd) then setPedControlState(pd, "crouch", false) end
+        end, 50, 1, ped)
     end
 end
 
--- Piros célzóvonal a ped fejétől a nézés irányába
+-- Piros célzóvonal a ped fejétől a ténylegesen célzott pontig
 local function drawAimLine(d, s)
-    if not d.aimDir then return end
-    local x, y, z = s[F_X], s[F_Y], s[F_Z] + 0.6
-    local a = d.aimDir
-    dxDrawLine3D(x, y, z, x + a[1] * 40, y + a[2] * 40, z + a[3] * 40, tocolor(255, 40, 40, 200), 2.5)
+    if not d.aimPoint then return end
+    local a = d.aimPoint
+    dxDrawLine3D(s[F_X], s[F_Y], s[F_Z] + 0.6, a[1], a[2], a[3], tocolor(255, 40, 40, 200), 2.5)
+    -- kis jelölő a célponton
+    local sx, sy = getScreenFromWorldPosition(a[1], a[2], a[3])
+    if sx then dxDrawRectangle(sx - 3, sy - 3, 6, 6, tocolor(255, 40, 40, 230)) end
 end
 
 local function drawLabel(name, d, s)
@@ -297,7 +341,7 @@ function renderReplay()
             setCameraMatrix(s[F_X] + math.sin(rz) * 4, s[F_Y] - math.cos(rz) * 4, s[F_Z] + 2.0, s[F_X], s[F_Y], s[F_Z] + 0.8)
         end
         -- A saját (láthatatlan) játékosunkat a követett ped közelében tartjuk, hogy a világ streamelődjön
-        if camMode ~= 3 and now - lastStreamMove > 1000 then
+        if camMode ~= 3 and now - lastStreamMove > 500 then
             lastStreamMove = now
             setElementPosition(localPlayer, s[F_X], s[F_Y], s[F_Z] + 0.5)
         end
@@ -382,6 +426,14 @@ addEventHandler("ttt:replayData", root, function(rec)
         end
     end
     followName = sortedNames()[1]
+    -- Azonnal a felvétel helyére visszük a saját (láthatatlan) játékosunkat, különben a pedek nem streamelődnek be
+    local first = followName and peds[followName]
+    if first then
+        local f = first.track.frames[1]
+        setElementPosition(localPlayer, f[F_X], f[F_Y], f[F_Z] + 0.5)
+        setElementFrozen(localPlayer, false)
+    end
+    lastStreamMove = 0
     showCursor(true)
     addEventHandler("onClientRender", root, renderReplay)
 end)
