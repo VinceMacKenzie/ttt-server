@@ -2,8 +2,8 @@
 -- TTT REPLAY - SZERVER: a kör rögzítése + JSON mentés + néző dimenzió kezelés
 --
 -- Frame (tömb, hogy kicsi legyen a JSON):
---  { t, x, y, z, rz, weapon, alive, ducked, move, aim, cx, cy, cz, lx, ly, lz }
---   move: 0 áll, 1 sétál, 2 fut, 3 sprintel   aim: 1 ha célzott
+--  { t, x, y, z, rz, weapon, alive, ducked, move, aim, cx, cy, cz, lx, ly, lz, fire }
+--   move: 0 áll, 1 sétál, 2 fut, 3 sprintel   aim: 1 ha célzott   fire: 1 ha lőtt az elmúlt 200 ms-ban
 --   cx..lz: a JÁTÉKOS kamerája (pozíció + nézett pont) - a kliens küldi 5 Hz-en
 -- Fájlok: replays/replay_ÉÉÉÉ-HH-NN_ÓÓ-PP-MM.json + replays/index.json
 -----------------------------------------
@@ -147,11 +147,11 @@ end)
 -- A kliens 5 Hz-en küldi a saját kamerájának mátrixát
 -- A kliens 5 Hz-en küldi: kamera mátrix + mozgásállapot + célzás
 -- (a getPedControlState CSAK kliensoldalon létezik, ezért ezeket a kliens számolja)
-addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz, move, aim)
+addEventHandler("ttt:replayCam", root, function(cx, cy, cz, lx, ly, lz, move, aim, fire)
     if not client or not recording then return end
     if type(cx) ~= "number" or type(lz) ~= "number" then return end
     lastCam[client] = { round2(cx), round2(cy), round2(cz), round2(lx), round2(ly), round2(lz),
-        move = tonumber(move) or 0, aim = tonumber(aim) or 0 }
+        move = tonumber(move) or 0, aim = tonumber(aim) or 0, fire = tonumber(fire) or 0 }
 end)
 
 -- Ha (még) nincs kliens adat: csak áll/mozog a sebességből
@@ -178,12 +178,13 @@ recordFrame = function()
         if not cam then
             -- Még nem jött kliens adat: a fej mögötti pontot használjuk
             cam = { round2(x + math.sin(math.rad(rz)) * 3), round2(y - math.cos(math.rad(rz)) * 3), round2(z + 1.5),
-                round2(x), round2(y), round2(z + 0.7), move = getMoveStateFallback(p), aim = 0 }
+                round2(x), round2(y), round2(z + 0.7), move = getMoveStateFallback(p), aim = 0, fire = 0 }
         end
         table.insert(track.frames, {
             t, round2(x), round2(y), round2(z), math.floor(rz), getPedWeapon(p) or 0, alive, isPedDucked(p) and 1 or 0,
             cam.move, cam.aim,
             cam[1], cam[2], cam[3], cam[4], cam[5], cam[6],
+            cam.fire or 0,
         })
     end
 end

@@ -11,6 +11,7 @@ local screenW, screenH = guiGetScreenSize()
 -- ---------- FELVÉTEL: kamera küldése ----------
 local isRecording = false
 local lastCamSend = 0
+local firedSinceLastSend = false
 addEvent("ttt:replayRecording", true)
 addEventHandler("ttt:replayRecording", root, function(state) isRecording = state end)
 
@@ -31,7 +32,13 @@ addEventHandler("onClientRender", root, function()
         else move = 2 end
     end
     local aim = getControlState("aim_weapon") and 1 or 0
-    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim)
+    local fire = firedSinceLastSend and 1 or 0
+    firedSinceLastSend = false
+    triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim, fire)
+end)
+
+addEventHandler("onClientPlayerWeaponFire", localPlayer, function()
+    firedSinceLastSend = true
 end)
 
 -- ---------- VISSZAJÁTSZÁS ----------
@@ -52,15 +59,7 @@ local weaponNames = {
 }
 
 -- Frame mezők indexei
-local F_T, F_X, F_Y, F_Z, F_RZ, F_WEP, F_ALIVE, F_DUCK, F_MOVE, F_AIM, F_CX, F_CY, F_CZ, F_LX, F_LY, F_LZ = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
-
--- Animációk: [move][ducked]
-local ANIMS = {
-    [0] = { [0] = nil,                          [1] = {"ped", "GUNCROUCH"} },
-    [1] = { [0] = {"ped", "WALK_player"},       [1] = {"ped", "GunCrouchFwd"} },
-    [2] = { [0] = {"ped", "run_player"},        [1] = {"ped", "GunCrouchFwd"} },
-    [3] = { [0] = {"ped", "sprint_civi"},       [1] = {"ped", "GunCrouchFwd"} },
-}
+local F_T, F_X, F_Y, F_Z, F_RZ, F_WEP, F_ALIVE, F_DUCK, F_MOVE, F_AIM, F_CX, F_CY, F_CZ, F_LX, F_LY, F_LZ, F_FIRE = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
 
 local function stopReplay()
     if not replay then return end
@@ -89,30 +88,47 @@ local function sampleTrack(d, t)
     if not b or b[F_T] == a[F_T] then return a end
     local f = (t - a[F_T]) / (b[F_T] - a[F_T])
     local s = d.sample
-    for k = 1, 16 do s[k] = a[k] end
+    for k = 1, 17 do s[k] = a[k] end
     s[F_X], s[F_Y], s[F_Z] = lerp(a[F_X], b[F_X], f), lerp(a[F_Y], b[F_Y], f), lerp(a[F_Z], b[F_Z], f)
     s[F_RZ] = lerpAngle(a[F_RZ], b[F_RZ], f)
     for k = F_CX, F_LZ do s[k] = lerp(a[k], b[k], f) end
     return s
 end
 
+local MOVE_CONTROLS = { "forwards", "backwards", "left", "right", "sprint", "walk", "fire", "aim_weapon", "jump" }
+
+local function clearControls(ped)
+    for _, c in ipairs(MOVE_CONTROLS) do setPedControlState(ped, c, false) end
+end
+
+local function getRotationTo(x1, y1, x2, y2)
+    local rot = -math.deg(math.atan2(x2 - x1, y2 - y1))
+    if rot < 0 then rot = rot + 360 end
+    return rot
+end
+
+-- A pedet CONTROL STATE-ekkel vezéreljük (mint egy játékost), így a GTA saját
+-- animációi mennek: séta/futás/sprint, guggolás, célzás, lövés. A rögzített pozíció
+-- a cél, amerre a ped megy; ha túl messzire csúszna, finoman visszatesszük.
 local function applyPedState(d, s)
     local ped = d.ped
-    setElementPosition(ped, s[F_X], s[F_Y], s[F_Z])
-    setElementRotation(ped, 0, 0, s[F_RZ], "default", true)
 
+    -- Halott
     if s[F_ALIVE] ~= 1 then
         if not d.dead then
-            d.dead, d.anim = true, "dead"
+            d.dead = true
+            clearControls(ped)
+            setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
             setPedAnimation(ped, "WCC", "ped_dead_front", -1, false, false, false, true)
             setElementAlpha(ped, 160)
         end
         return
     end
     if d.dead then
-        d.dead, d.anim = false, nil
+        d.dead = false
         setPedAnimation(ped)
         setElementAlpha(ped, 255)
+        setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
     end
 
     -- Fegyver a kézben
@@ -122,32 +138,70 @@ local function applyPedState(d, s)
         if wep > 0 then givePedWeapon(ped, wep, 9999, true) else setPedWeaponSlot(ped, 0) end
     end
 
-    -- Célzás: a játékos kamerájának irányába
-    local aiming = (s[F_AIM] == 1 and wep > 0)
-    if aiming then
-        local dx, dy, dz = s[F_LX] - s[F_CX], s[F_LY] - s[F_CY], s[F_LZ] - s[F_CZ]
-        local len = math.sqrt(dx * dx + dy * dy + dz * dz)
-        if len > 0 then
-            setPedAimTarget(ped, s[F_X] + dx / len * 30, s[F_Y] + dy / len * 30, s[F_Z] + 0.6 + dz / len * 30)
-        end
-    end
-    if aiming ~= d.aiming then
-        d.aiming = aiming
-        setPedControlState(ped, "aim_weapon", aiming)
+    -- Hol van most a ped, hol kellene lennie
+    local px, py, pz = getElementPosition(ped)
+    local dx, dy, dz = s[F_X] - px, s[F_Y] - py, s[F_Z] - pz
+    local dist = math.sqrt(dx * dx + dy * dy)
+
+    -- Túl nagy eltérés (elakadt, lemaradt, ugrott): visszatesszük warp nélkül
+    if dist > 2.5 or math.abs(dz) > 2.0 then
+        setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
+        px, py, pz, dx, dy, dist = s[F_X], s[F_Y], s[F_Z], 0, 0, 0
     end
 
-    -- Mozgás animáció (csak változásnál)
-    local animKey = (aiming and "aim_" or "") .. s[F_MOVE] .. "_" .. s[F_DUCK]
-    if animKey ~= d.anim then
-        d.anim = animKey
-        local a = ANIMS[s[F_MOVE]] and ANIMS[s[F_MOVE]][s[F_DUCK]]
-        if aiming and s[F_MOVE] == 0 then
-            setPedAnimation(ped)            -- célzó pózt a setPedAimTarget adja
-        elseif a then
-            setPedAnimation(ped, a[1], a[2], -1, true, true, false, false)
-        else
-            setPedAnimation(ped)
+    -- Célzás: a kamera irányába
+    local aiming = (s[F_AIM] == 1 and wep > 0)
+    local facing = s[F_RZ]
+    if aiming then
+        local ax, ay, az = s[F_LX] - s[F_CX], s[F_LY] - s[F_CY], s[F_LZ] - s[F_CZ]
+        local len = math.sqrt(ax * ax + ay * ay + az * az)
+        if len > 0 then
+            setPedAimTarget(ped, px + ax / len * 30, py + ay / len * 30, pz + 0.6 + az / len * 30)
+            facing = getRotationTo(0, 0, ax, ay)
         end
+    end
+    setPedControlState(ped, "aim_weapon", aiming)
+    setPedControlState(ped, "fire", aiming and s[F_FIRE] == 1)
+
+    -- Mozgás
+    local moving = (s[F_MOVE] or 0) > 0 and dist > 0.2
+    if moving then
+        local moveRot = getRotationTo(px, py, s[F_X], s[F_Y])
+        if aiming then
+            -- célzás közben a ped a kamera felé néz, a mozgás irányát ehhez képest adjuk meg
+            local rel = (moveRot - facing + 540) % 360 - 180   -- -180..180
+            setPedRotation(ped, facing)
+            setPedControlState(ped, "forwards",  math.abs(rel) < 67.5)
+            setPedControlState(ped, "backwards", math.abs(rel) > 112.5)
+            setPedControlState(ped, "left",  rel > 22.5 and rel < 157.5)
+            setPedControlState(ped, "right", rel < -22.5 and rel > -157.5)
+        else
+            setPedRotation(ped, moveRot)
+            setPedControlState(ped, "forwards", true)
+            setPedControlState(ped, "backwards", false)
+            setPedControlState(ped, "left", false)
+            setPedControlState(ped, "right", false)
+        end
+        setPedControlState(ped, "sprint", s[F_MOVE] == 3)
+        setPedControlState(ped, "walk",   s[F_MOVE] == 1)
+    else
+        setPedControlState(ped, "forwards", false)
+        setPedControlState(ped, "backwards", false)
+        setPedControlState(ped, "left", false)
+        setPedControlState(ped, "right", false)
+        setPedControlState(ped, "sprint", false)
+        setPedControlState(ped, "walk", false)
+        setPedRotation(ped, facing)
+        -- Álló helyzetben kis eltérést is korrigálunk, hogy pontosan ott álljon
+        if dist > 0.5 then setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false) end
+    end
+
+    -- Guggolás: a "crouch" GTA-ban kapcsoló, ezért csak akkor nyomjuk meg, ha változtatni kell
+    local wantDuck = (s[F_DUCK] == 1)
+    if wantDuck ~= isPedDucked(ped) and not d.duckPulse then
+        d.duckPulse = true
+        setPedControlState(ped, "crouch", true)
+        setTimer(function(pd, dd) if isElement(pd) then setPedControlState(pd, "crouch", false) end dd.duckPulse = nil end, 150, 1, ped, d)
     end
 end
 
@@ -248,9 +302,8 @@ addEventHandler("ttt:replayData", root, function(rec)
             local ped = createPed(track.skin or 0, f[F_X], f[F_Y], f[F_Z], f[F_RZ])
             if ped then
                 setElementDimension(ped, dim)
-                setElementCollisionsEnabled(ped, false)
                 setElementData(ped, "isReplayPed", true, false)
-                peds[name] = { ped = ped, track = track, frameIdx = 1, dead = false, weapon = 0, aiming = false, anim = nil, sample = {} }
+                peds[name] = { ped = ped, track = track, frameIdx = 1, dead = false, weapon = 0, sample = {} }
             end
         end
     end
@@ -266,12 +319,13 @@ addEventHandler("onClientKey", root, function(button, press)
     if button == "space" then
         paused = not paused
         cancelEvent()
-    elseif button == "arrow_left" then
-        playTime = math.max(0, playTime - 5000)
-        for _, d in pairs(peds) do d.frameIdx = 1 end
-        cancelEvent()
-    elseif button == "arrow_right" then
-        playTime = math.min(replay.length, playTime + 5000)
+    elseif button == "arrow_left" or button == "arrow_right" then
+        playTime = button == "arrow_left" and math.max(0, playTime - 5000) or math.min(replay.length, playTime + 5000)
+        for _, d in pairs(peds) do
+            d.frameIdx = 1
+            local s = sampleTrack(d, playTime)
+            if s and isElement(d.ped) then setElementPosition(d.ped, s[F_X], s[F_Y], s[F_Z], false) end
+        end
         cancelEvent()
     elseif button == "num_add" then
         speed = math.min(8, speed * 2)
