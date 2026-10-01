@@ -7,7 +7,7 @@
 --   cx..lz: a JÁTÉKOS kamerája (pozíció + nézett pont) - a kliens küldi 5 Hz-en
 -- Fájlok: replays/replay_ÉÉÉÉ-HH-NN_ÓÓ-PP-MM.json + replays/index.json
 -----------------------------------------
-local FRAME_MS = 200
+local FRAME_MS = 100          -- felvételi lépés (10 Hz)
 local MAX_SAVED_FILES = 50
 local REPLAY_DIM_BASE = 60000   -- minden néző saját dimenziót kap: BASE + sorszám
 local INDEX_FILE = "replays/index.json"

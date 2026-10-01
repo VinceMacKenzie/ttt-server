@@ -4,7 +4,7 @@
 --  2) Visszajátszás kliensoldali pedekkel a saját replay-dimenziónkban:
 --     interpolált pozíció + forgás, fegyver a kézben (givePedWeapon), célzás, séta/futás/sprint/guggolás anim,
 --     a követett játékos EREDETI kamerája (vagy váll mögötti / szabad kamera)
--- Vezérlés: SPACE szünet | <- -> 5 mp | NUM+/- sebesség | F7 következő játékos | F8 kameramód | ESC/replaystop kilépés
+-- Vezérlés: SPACE szünet | <- -> 5 mp | NUM+/- sebesség | F7 következő játékos | F6 kameramód | kattintható idővonal | ESC/replaystop kilépés
 -----------------------------------------
 local screenW, screenH = guiGetScreenSize()
 
@@ -18,7 +18,7 @@ addEventHandler("ttt:replayRecording", root, function(state) isRecording = state
 addEventHandler("onClientRender", root, function()
     if not isRecording then return end
     local now = getTickCount()
-    if now - lastCamSend < 200 then return end
+    if now - lastCamSend < 100 then return end
     lastCamSend = now
     -- Csak ha élünk és van szerepünk (halottak kamerája nem érdekes)
     if not getElementData(localPlayer, "tttRole") or isPedDead(localPlayer) then return end
@@ -47,6 +47,7 @@ local peds = {}             -- [név] = {ped, track, frameIdx, dead, weapon, ani
 local playTime, lastTick = 0, 0
 local speed, paused = 1.0, false
 local followName = nil
+local timelineDrag = false  -- idővonal csúszka húzása
 local camMode = 1           -- 1 = a játékos eredeti kamerája, 2 = váll mögött, 3 = szabad (a saját pozíciód)
 local camModeNames = { "JÁTÉKOS KAMERA", "VÁLL MÖGÜL", "SZABAD" }
 local lastStreamMove = 0
@@ -67,7 +68,8 @@ local function stopReplay()
     for _, d in pairs(peds) do
         if isElement(d.ped) then destroyElement(d.ped) end
     end
-    peds, replay, followName = {}, nil, nil
+    peds, replay, followName, timelineDrag = {}, nil, nil, false
+    showCursor(false)
     setCameraTarget(localPlayer)
     triggerServerEvent("ttt:replayEnded", localPlayer)  -- a szerver visszarak az eredeti dimenzióba
     outputChatBox("#00c3ff[Replay] #ffffffVisszajátszás leállítva.", 255, 255, 255, true)
@@ -107,10 +109,12 @@ local function getRotationTo(x1, y1, x2, y2)
     return rot
 end
 
--- A pedet CONTROL STATE-ekkel vezéreljük (mint egy játékost), így a GTA saját
--- animációi mennek: séta/futás/sprint, guggolás, célzás, lövés. A rögzített pozíció
--- a cél, amerre a ped megy; ha túl messzire csúszna, finoman visszatesszük.
-local function applyPedState(d, s)
+-- HIBRID lejátszás: a pozíciót minden képkockán MI állítjuk (interpolált, pontos, warp nélkül),
+-- a control state-ek (forwards/sprint/walk/crouch/aim_weapon/fire) pedig csak az animációt adják -
+-- így a GTA saját séta/futás/célzás/lövés animációi mennek, de a ped nem csúszik el és nem marad le.
+local ROT_SMOOTH = 0.35   -- forgás simítás (0..1, nagyobb = gyorsabb)
+
+local function applyPedState(d, s, dt)
     local ped = d.ped
 
     -- Halott
@@ -118,6 +122,7 @@ local function applyPedState(d, s)
         if not d.dead then
             d.dead = true
             clearControls(ped)
+            setPedControlState(ped, "crouch", false)
             setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
             setPedAnimation(ped, "WCC", "ped_dead_front", -1, false, false, false, true)
             setElementAlpha(ped, 160)
@@ -128,7 +133,6 @@ local function applyPedState(d, s)
         d.dead = false
         setPedAnimation(ped)
         setElementAlpha(ped, 255)
-        setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
     end
 
     -- Fegyver a kézben
@@ -138,45 +142,45 @@ local function applyPedState(d, s)
         if wep > 0 then givePedWeapon(ped, wep, 9999, true) else setPedWeaponSlot(ped, 0) end
     end
 
-    -- Hol van most a ped, hol kellene lennie
-    local px, py, pz = getElementPosition(ped)
-    local dx, dy, dz = s[F_X] - px, s[F_Y] - py, s[F_Z] - pz
-    local dist = math.sqrt(dx * dx + dy * dy)
+    -- Mozgásirány a minta elmozdulásából (előző képkocka -> mostani)
+    local mx, my = s[F_X] - (d.lx or s[F_X]), s[F_Y] - (d.ly or s[F_Y])
+    d.lx, d.ly = s[F_X], s[F_Y]
+    local moveLen = math.sqrt(mx * mx + my * my)
+    local moving = (s[F_MOVE] or 0) > 0 and moveLen > 0.002 * (dt / 16)
 
-    -- Túl nagy eltérés (elakadt, lemaradt, ugrott): visszatesszük warp nélkül
-    if dist > 2.5 or math.abs(dz) > 2.0 then
-        setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
-        px, py, pz, dx, dy, dist = s[F_X], s[F_Y], s[F_Z], 0, 0, 0
-    end
-
-    -- Célzás: a kamera irányába
+    -- Célzás a kamera irányába + piros vonal
     local aiming = (s[F_AIM] == 1 and wep > 0)
     local facing = s[F_RZ]
+    d.aimDir = nil
     if aiming then
         local ax, ay, az = s[F_LX] - s[F_CX], s[F_LY] - s[F_CY], s[F_LZ] - s[F_CZ]
         local len = math.sqrt(ax * ax + ay * ay + az * az)
         if len > 0 then
-            setPedAimTarget(ped, px + ax / len * 30, py + ay / len * 30, pz + 0.6 + az / len * 30)
+            ax, ay, az = ax / len, ay / len, az / len
+            setPedAimTarget(ped, s[F_X] + ax * 40, s[F_Y] + ay * 40, s[F_Z] + 0.6 + az * 40)
             facing = getRotationTo(0, 0, ax, ay)
+            d.aimDir = { ax, ay, az }
         end
+    elseif moving then
+        facing = getRotationTo(0, 0, mx, my)
     end
+
+    -- Simított forgás
+    d.rot = d.rot and lerpAngle(d.rot, facing, ROT_SMOOTH) or facing
+    setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false)
+    setPedRotation(ped, d.rot)
+
+    -- Control state-ek (csak animációhoz)
     setPedControlState(ped, "aim_weapon", aiming)
     setPedControlState(ped, "fire", aiming and s[F_FIRE] == 1)
-
-    -- Mozgás
-    local moving = (s[F_MOVE] or 0) > 0 and dist > 0.2
     if moving then
-        local moveRot = getRotationTo(px, py, s[F_X], s[F_Y])
         if aiming then
-            -- célzás közben a ped a kamera felé néz, a mozgás irányát ehhez képest adjuk meg
-            local rel = (moveRot - facing + 540) % 360 - 180   -- -180..180
-            setPedRotation(ped, facing)
+            local rel = (getRotationTo(0, 0, mx, my) - d.rot + 540) % 360 - 180
             setPedControlState(ped, "forwards",  math.abs(rel) < 67.5)
             setPedControlState(ped, "backwards", math.abs(rel) > 112.5)
             setPedControlState(ped, "left",  rel > 22.5 and rel < 157.5)
             setPedControlState(ped, "right", rel < -22.5 and rel > -157.5)
         else
-            setPedRotation(ped, moveRot)
             setPedControlState(ped, "forwards", true)
             setPedControlState(ped, "backwards", false)
             setPedControlState(ped, "left", false)
@@ -191,18 +195,34 @@ local function applyPedState(d, s)
         setPedControlState(ped, "right", false)
         setPedControlState(ped, "sprint", false)
         setPedControlState(ped, "walk", false)
-        setPedRotation(ped, facing)
-        -- Álló helyzetben kis eltérést is korrigálunk, hogy pontosan ott álljon
-        if dist > 0.5 then setElementPosition(ped, s[F_X], s[F_Y], s[F_Z], false) end
     end
 
-    -- Guggolás: a "crouch" GTA-ban kapcsoló, ezért csak akkor nyomjuk meg, ha változtatni kell
+    -- Guggolás. Pednél a "crouch" lenyomva tartása guggolást jelent; ha a GTA kapcsolóként
+    -- kezelné, az "elengedés + újranyomás" ág oldja meg: ha 400 ms után sincs a kívánt állapotban, újra nyomjuk.
     local wantDuck = (s[F_DUCK] == 1)
-    if wantDuck ~= isPedDucked(ped) and not d.duckPulse then
-        d.duckPulse = true
-        setPedControlState(ped, "crouch", true)
-        setTimer(function(pd, dd) if isElement(pd) then setPedControlState(pd, "crouch", false) end dd.duckPulse = nil end, 150, 1, ped, d)
+    local isDuck = isPedDucked(ped)
+    local now = getTickCount()
+    if wantDuck == isDuck then
+        d.duckSince = nil
+        setPedControlState(ped, "crouch", wantDuck)
+    else
+        d.duckSince = d.duckSince or now
+        if now - d.duckSince > 400 then
+            -- újranyomás: egy képkockára elengedjük
+            setPedControlState(ped, "crouch", false)
+            d.duckSince = now
+        else
+            setPedControlState(ped, "crouch", true)
+        end
     end
+end
+
+-- Piros célzóvonal a ped fejétől a nézés irányába
+local function drawAimLine(d, s)
+    if not d.aimDir then return end
+    local x, y, z = s[F_X], s[F_Y], s[F_Z] + 0.6
+    local a = d.aimDir
+    dxDrawLine3D(x, y, z, x + a[1] * 40, y + a[2] * 40, z + a[3] * 40, tocolor(255, 40, 40, 200), 2.5)
 end
 
 local function drawLabel(name, d, s)
@@ -214,11 +234,45 @@ local function drawLabel(name, d, s)
     dxDrawText(label, sx, sy, sx, sy, tocolor(c[1], c[2], c[3], s[F_ALIVE] == 1 and 255 or 140), 1.1, "default-bold", "center", "center")
 end
 
+-- Idővonal (csúszka) geometriája
+local TL_W = 600
+local TL_X = screenW / 2 - TL_W / 2
+local TL_Y, TL_H = 114, 10
+local function isMouseOverTimeline()
+    if not isCursorShowing() then return false end
+    local cx, cy = getCursorPosition()
+    if not cx then return false end
+    cx, cy = cx * screenW, cy * screenH
+    return cx >= TL_X - 6 and cx <= TL_X + TL_W + 6 and cy >= TL_Y - 10 and cy <= TL_Y + TL_H + 10
+end
+
+-- Ugrás adott időpontra: a pedek pozícióját azonnal beállítjuk
+function seekTo(t)
+    playTime = math.max(0, math.min(replay.length, t))
+    for _, d in pairs(peds) do
+        d.frameIdx = 1
+        d.lx, d.ly = nil, nil
+        local s = sampleTrack(d, playTime)
+        if s and isElement(d.ped) then setElementPosition(d.ped, s[F_X], s[F_Y], s[F_Z], false) end
+    end
+end
+
 function renderReplay()
     if not replay then return end
     local now = getTickCount()
-    if not paused then playTime = playTime + (now - lastTick) * speed end
+    local dt = now - lastTick
     lastTick = now
+
+    -- Csúszka húzása
+    if timelineDrag then
+        local cx = getCursorPosition()
+        if cx then
+            local frac = math.max(0, math.min(1, (cx * screenW - TL_X) / TL_W))
+            seekTo(frac * replay.length)
+        end
+    elseif not paused then
+        playTime = playTime + dt * speed
+    end
     if playTime > replay.length then playTime = replay.length; paused = true end
     if playTime < 0 then playTime = 0 end
 
@@ -226,7 +280,8 @@ function renderReplay()
     for name, d in pairs(peds) do
         local s = sampleTrack(d, playTime)
         if s and isElement(d.ped) then
-            applyPedState(d, s)
+            applyPedState(d, s, dt)
+            drawAimLine(d, s)
             drawLabel(name, d, s)
             if followName == name then followSample = s end
         end
@@ -251,17 +306,36 @@ function renderReplay()
     -- Felső sáv
     local timeStr = string.format("%02d:%02d / %02d:%02d", math.floor(playTime / 60000), math.floor(playTime / 1000) % 60,
         math.floor(replay.length / 60000), math.floor(replay.length / 1000) % 60)
-    dxDrawRectangle(screenW / 2 - 300, 60, 600, 34, tocolor(0, 15, 25, 200))
+    dxDrawRectangle(TL_X, 60, TL_W, 34, tocolor(0, 15, 25, 200))
     dxDrawText("REPLAY  " .. timeStr .. "  x" .. speed .. (paused and "  [SZÜNET]" or "") .. "   Győztes: " .. tostring(replay.winner) ..
         "   Kamera: " .. camModeNames[camMode] .. (followName and (" (" .. followName .. ")") or ""),
-        screenW / 2 - 300, 60, screenW / 2 + 300, 94, tocolor(0, 195, 255, 255), 1.0, "default-bold", "center", "center")
-    dxDrawText("SPACE szünet | <- -> 5 mp | NUM+/- sebesség | F7 játékos | F8 kameramód | ESC kilépés   " .. tostring(replay.fileName or ""),
-        screenW / 2 - 300, 94, screenW / 2 + 300, 110, tocolor(255, 255, 255, 120), 0.8, "default", "center", "top")
-    dxDrawRectangle(screenW / 2 - 300, 112, 600, 4, tocolor(255, 255, 255, 30))
-    dxDrawRectangle(screenW / 2 - 300, 112, 600 * (playTime / math.max(1, replay.length)), 4, tocolor(0, 195, 255, 255))
+        TL_X, 60, TL_X + TL_W, 94, tocolor(0, 195, 255, 255), 1.0, "default-bold", "center", "center")
+    dxDrawText("SPACE szünet | <- -> 5 mp | NUM+/- sebesség | F7 játékos | F6 kameramód | ESC kilépés | M kurzor   " .. tostring(replay.fileName or ""),
+        TL_X, 94, TL_X + TL_W, 110, tocolor(255, 255, 255, 120), 0.8, "default", "center", "top")
+
+    -- Kattintható / húzható idővonal
+    local frac = playTime / math.max(1, replay.length)
+    local hover = timelineDrag or isMouseOverTimeline()
+    dxDrawRectangle(TL_X, TL_Y, TL_W, TL_H, tocolor(255, 255, 255, hover and 50 or 30))
+    dxDrawRectangle(TL_X, TL_Y, TL_W * frac, TL_H, tocolor(0, 195, 255, 255))
+    -- események jelölése az idővonalon
+    for _, ev in ipairs(replay.events) do
+        local ex = TL_X + TL_W * (ev[1] / math.max(1, replay.length))
+        dxDrawRectangle(ex - 1, TL_Y - 2, 2, TL_H + 4, tocolor(255, 200, 80, 220))
+    end
+    -- fogantyú
+    local hx = TL_X + TL_W * frac
+    dxDrawRectangle(hx - 5, TL_Y - 4, 10, TL_H + 8, tocolor(255, 255, 255, 255))
+    if hover then
+        local cx = getCursorPosition()
+        if cx then
+            local t = math.max(0, math.min(1, (cx * screenW - TL_X) / TL_W)) * replay.length
+            dxDrawText(string.format("%02d:%02d", math.floor(t / 60000), math.floor(t / 1000) % 60), cx * screenW - 30, TL_Y + TL_H + 4, cx * screenW + 30, TL_Y + TL_H + 20, tocolor(255, 255, 255, 230), 0.9, "default-bold", "center", "top")
+        end
+    end
 
     -- Már megtörtént események (utolsó 5)
-    local shown, y = 0, 125
+    local shown, y = 0, TL_Y + TL_H + 24
     for i = #replay.events, 1, -1 do
         local ev = replay.events[i]
         if ev[1] <= playTime then
@@ -308,11 +382,31 @@ addEventHandler("ttt:replayData", root, function(rec)
         end
     end
     followName = sortedNames()[1]
+    showCursor(true)
     addEventHandler("onClientRender", root, renderReplay)
+end)
+
+-- A visszajátszott pedek valóban lőnek; a nézőt (láthatatlan, saját dimenzióban) ne sebezzék
+addEventHandler("onClientPlayerDamage", localPlayer, function()
+    if replay then cancelEvent() end
 end)
 
 addEvent("ttt:replayStop", true)
 addEventHandler("ttt:replayStop", root, stopReplay)
+
+-- Idővonal: kattintás = ugrás, lenyomva tartva = húzás
+addEventHandler("onClientClick", root, function(button, state)
+    if not replay or button ~= "left" then return end
+    if state == "down" then
+        if isMouseOverTimeline() then
+            timelineDrag = true
+            local cx = getCursorPosition()
+            seekTo(math.max(0, math.min(1, (cx * screenW - TL_X) / TL_W)) * replay.length)
+        end
+    else
+        timelineDrag = false
+    end
+end)
 
 addEventHandler("onClientKey", root, function(button, press)
     if not replay or not press then return end
@@ -320,12 +414,7 @@ addEventHandler("onClientKey", root, function(button, press)
         paused = not paused
         cancelEvent()
     elseif button == "arrow_left" or button == "arrow_right" then
-        playTime = button == "arrow_left" and math.max(0, playTime - 5000) or math.min(replay.length, playTime + 5000)
-        for _, d in pairs(peds) do
-            d.frameIdx = 1
-            local s = sampleTrack(d, playTime)
-            if s and isElement(d.ped) then setElementPosition(d.ped, s[F_X], s[F_Y], s[F_Z], false) end
-        end
+        seekTo(playTime + (button == "arrow_left" and -5000 or 5000))
         cancelEvent()
     elseif button == "num_add" then
         speed = math.min(8, speed * 2)
@@ -337,7 +426,7 @@ addEventHandler("onClientKey", root, function(button, press)
         for i, n in ipairs(names) do if n == followName then nextIdx = i + 1 end end
         followName = names[nextIdx] or names[1]
         outputChatBox("#00c3ff[Replay] #ffffffKövetett játékos: " .. tostring(followName), 255, 255, 255, true)
-    elseif button == "F8" then
+    elseif button == "F6" then
         camMode = camMode % 3 + 1
         if camMode == 3 then setCameraTarget(localPlayer) end
         outputChatBox("#00c3ff[Replay] #ffffffKameramód: " .. camModeNames[camMode], 255, 255, 255, true)
