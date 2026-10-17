@@ -1,0 +1,47 @@
+/* FROST - jeges, csillogó betűk, hideg ragyogás, villódzó jégszikrák és lelógó jégcsapok */
+p {
+    position: relative;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+
+    background-image: linear-gradient(100deg,
+        #8fdcff 0%, #ffffff 25%, #6fc8ff 45%, #d9f6ff 60%, #ffffff 75%, #8fdcff 100%);
+    background-size: 120px 100%;
+    background-repeat: repeat-x;
+    -webkit-background-clip: text;
+    background-clip: text;
+
+    animation: frost-shimmer 3s linear infinite;
+    filter: drop-shadow(0 0 3px #4fc3ff) drop-shadow(0 0 7px rgba(120, 210, 255, 0.6));
+}
+
+@keyframes frost-shimmer {
+    from { background-position: 0 0; }
+    to   { background-position: 120px 0; }
+}
+
+/* jégszikrák */
+p::before {
+    content: "";
+    position: absolute;
+    left: -4px; right: -4px; top: -6px; bottom: -2px;
+    pointer-events: none;
+    background:
+        radial-gradient(circle, #ffffff 0 1px, transparent 2px) 6px 4px / 38px 22px,
+        radial-gradient(circle, #cdf4ff 0 1px, transparent 2px) 22px 14px / 46px 26px;
+    animation: frost-twinkle 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes frost-twinkle {
+    from { opacity: 0.15; }
+    to   { opacity: 1; }
+}
+
+/* jégcsapok a szöveg alatt */
+p::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 6px;
+    background: conic-gradient(from 150deg at 50% 0%, #e8fbff 60deg, transparent 0) 0 0 / 7px 6px repeat-x;
+}

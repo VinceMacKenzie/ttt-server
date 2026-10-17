@@ -9,7 +9,8 @@ local reportList = {}
 local adminColors = {
     [1] = {r = 46, g = 204, b = 113, name = "ADMIN"},       -- Innocent zöld
     [2] = {r = 52, g = 152, b = 219, name = "FŐADMIN"},     -- Detective kék
-    [3] = {r = 231, g = 76, b = 60, name = "TULAJDONOS"},   -- Traitor piros
+    [3] = {r = 75, g = 214, b = 219, name = "FEJLESZTŐ"},
+    [4] = {r = 231, g = 76, b = 60, name = "TULAJDONOS"},   -- Traitor piros
 }
 local mainCyan = tocolor(0, 195, 255, 150)
 
@@ -28,7 +29,7 @@ guiSetVisible(msgInput, false)
 guiSetAlpha(msgInput, 0)
 guiSetProperty(msgInput, "MaxTextLength", "100")
 
-function drawCyberBorder(ax, ay, aw, ah, color, thickness)
+local function drawCyberBorder(ax, ay, aw, ah, color, thickness)
     local l = 20
     dxDrawLine(ax, ay, ax + l, ay, color, thickness)
     dxDrawLine(ax, ay, ax, ay + l, color, thickness)
@@ -85,8 +86,8 @@ addEventHandler("onClientRender", root, function()
                     borderColor = tocolor(226, 247, 0, 200)
                     rankName = "SYSTEM"
                 elseif not msg.Messager:find("GUEST") then
-                    local displayLvl = (msg.Messager == getPlayerName(localPlayer):upper()) and adminLvl or 1
-                    local cfg = adminColors[displayLvl] or adminColors[1]
+                    -- A szerver elmenti az üzenethez az admin szintet (AdminLevel oszlop)
+                    local cfg = adminColors[tonumber(msg.AdminLevel) or 1] or adminColors[1]
                     boxColor = tocolor(cfg.r, cfg.g, cfg.b, 40)
                     borderColor = tocolor(cfg.r, cfg.g, cfg.b, 255)
                     rankName = cfg.name

@@ -1,0 +1,80 @@
+/* FIRE - lángoló betűk: villódzó tűzfény + két, egymástól függetlenül lobogó lángréteg */
+p {
+    position: relative;
+    color: #fff3b0;
+    text-shadow:
+        0 0 2px #ffffff,
+        0 -1px 3px #ffe66b,
+        1px -3px 5px #ffb300,
+        -1px -5px 7px #ff7a00,
+        1px -8px 9px #ff4500,
+        0 -11px 12px #e02500;
+    animation: fire-text 0.16s ease-in-out infinite alternate;
+}
+
+@keyframes fire-text {
+    0% {
+        text-shadow:
+            0 0 2px #ffffff,
+            0 -1px 3px #ffe66b,
+            1px -3px 5px #ffb300,
+            -1px -5px 7px #ff7a00,
+            1px -8px 9px #ff4500,
+            0 -11px 12px #e02500;
+    }
+    50% {
+        text-shadow:
+            0 0 3px #ffffff,
+            1px -2px 4px #ffe66b,
+            -1px -4px 6px #ffb300,
+            1px -7px 8px #ff7a00,
+            -1px -10px 11px #ff4500,
+            1px -13px 14px #c81e00;
+    }
+    100% {
+        text-shadow:
+            0 0 2px #ffffff,
+            -1px -1px 3px #ffe66b,
+            1px -4px 5px #ffb300,
+            -1px -6px 8px #ff7a00,
+            1px -9px 10px #ff4500,
+            -1px -12px 13px #d52300;
+    }
+}
+
+/* lángnyelvek: a név másolata, csak az árnyéka látszik, és felfelé lobog */
+p::before,
+p::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0; top: 0;
+    white-space: nowrap;
+    color: transparent;
+    pointer-events: none;
+    transform-origin: 50% 100%;
+}
+
+p::before {
+    text-shadow:
+        0 -6px 6px rgba(255, 170, 0, 0.85),
+        0 -12px 10px rgba(255, 80, 0, 0.7);
+    filter: blur(1.5px);
+    animation: flame-a 0.45s ease-in-out infinite alternate;
+}
+
+p::after {
+    text-shadow:
+        0 -4px 5px rgba(255, 230, 120, 0.9),
+        0 -9px 8px rgba(255, 120, 0, 0.8);
+    animation: flame-b 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes flame-a {
+    from { transform: scaleY(1)    translateY(0)    skewX(-2deg); opacity: 0.9; }
+    to   { transform: scaleY(1.22) translateY(-2px) skewX(3deg);  opacity: 0.55; }
+}
+
+@keyframes flame-b {
+    from { transform: scaleY(1.12) translateY(-1px) skewX(3deg);  opacity: 1; }
+    to   { transform: scaleY(0.94) translateY(0)    skewX(-3deg); opacity: 0.7; }
+}

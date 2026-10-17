@@ -1,59 +1,68 @@
--- Amikor a játékos belép vagy a kliens kéri (onClientResourceStart-nál hívtuk meg)
+-- Szerveroldali cache: ownedCache[player] = {[skinID] = "Név"}
+-- Ebből döntjük el, hogy egy skin ingyen felvehető-e (a kliensnek nem hiszünk).
+local ownedCache = {}
+
+local function loadOwnedSkins(p)
+    if not isElement(p) then return end
+    local db = exports["ttt-sql"]:getDatabaseHandler()
+    if not db then return end
+    local playerName = getPlayerName(p)
+
+    dbQuery(function(qh, player)
+        if not isElement(player) then return end
+        local res = dbPoll(qh, 0)
+        local owned = {}
+        if res then
+            for _, row in ipairs(res) do
+                owned[tonumber(row.skin_id)] = row.skin_name or "Ismeretlen Skin"
+            end
+        end
+        ownedCache[player] = owned
+        triggerClientEvent(player, "ttt:receiveOwnedSkins", player, owned)
+    end, {p}, db, "SELECT skin_id, skin_name FROM owned_skins WHERE player_name = ?", playerName)
+end
+
+-- Kliens kéri (resource start), vagy a ttt-admin triggereli /giveskin után (ilyenkor source a játékos)
 addEvent("ttt:requestOwnedSkins", true)
 addEventHandler("ttt:requestOwnedSkins", root, function()
-    local p = client
-    local playerName = getPlayerName(p)
-    
-    local dbHandler = exports["ttt-sql"]:getDatabaseHandler() 
-    
-    if dbHandler then
-        -- Kiegészítve a skin_name lekérésével!
-        dbQuery(function(qh)
-            local res = dbPoll(qh, 0)
-            local ownedTable = {}
-            if res then
-                for _, row in ipairs(res) do
-                    -- Most már nem true-t, hanem a konkrét nevet mentjük el az ID-hez!
-                    -- row.skin_id lesz a kulcs (pl. 181), row.skin_name az érték (pl. "Motoros")
-                    ownedTable[row.skin_id] = row.skin_name or "Ismeretlen Skin"
-                end
-            end
-            -- Visszaküldjük a kliensnek a táblázatot, amiben már benne vannak a nevek is
-            triggerClientEvent(p, "ttt:receiveOwnedSkins", p, ownedTable)
-            outputDebugString("[SkinSystem] " .. playerName .. " megvett skinjei betöltve (nevekkel).")
-        end, dbHandler, "SELECT skin_id, skin_name FROM owned_skins WHERE player_name = ?", playerName)
-    end
+    loadOwnedSkins(client or source)
 end)
 
--- Vásárlás és Felvétel kezelése
-addEvent("ttt:buySkin", true)
-addEventHandler("ttt:buySkin", root, function(name, price, skinID, isFree)
-    local p = client
-    local playerName = getPlayerName(p)
-    local playerMoney = getPlayerMoney(p)
+addEventHandler("onPlayerQuit", root, function() ownedCache[source] = nil end)
 
-    if isFree then
-        -- Ha már megvan az SQL-ben, csak rátesszük a skint
+-- Vásárlás / felvétel: a kliens csak a skin ID-t küldi
+addEvent("ttt:buySkin", true)
+addEventHandler("ttt:buySkin", root, function(skinID)
+    local p = client
+    if not p then return end
+    skinID = tonumber(skinID)
+    local skin = SkinByID[skinID]
+    if not skin then return end
+
+    local owned = ownedCache[p] or {}
+    local displayName = getSkinDisplayName(skinID)
+
+    -- Már megvan (vagy ingyenes alap skin): csak felvesszük
+    if owned[skinID] or skin[2] == 0 then
         setElementModel(p, skinID)
-        outputChatBox("#7cc576[Skin] #ffffffSkin sikeresen felvéve!", p, 255, 255, 255, true)
-    else
-        -- Ha még nincs meg, ellenőrizzük a pénzt
-        if playerMoney >= price then
-            takePlayerMoney(p, price)
-            setElementModel(p, skinID)
-            
-            -- Mentés az adatbázisba a ttt-sql-en keresztül
-            local displayName = (name == "basic") and ("Skin #"..skinID) or name
-            local success = exports["ttt-sql"]:dbQueryExec("INSERT INTO owned_skins (player_name, skin_id, skin_name, price) VALUES (?, ?, ?, ?)", 
-                playerName, skinID, displayName, price)
-            
-            if success then
-                outputChatBox("#7cc576[Skin] #ffffffSikeres vásárlás: #00c3ff" .. displayName, p, 255, 255, 255, true)
-                -- Azonnal frissítjük a kliensnél a listát, hogy ne kelljen újra belépnie
-                triggerClientEvent(p, "ttt:addOwnedSkinToClient", p, skinID)
-            end
-        else
-            outputChatBox("#d9534f[Skin] #ffffffNincs elég pénzed a vásárláshoz! ($" .. price .. ")", p, 255, 255, 255, true)
-        end
+        return outputChatBox("#7cc576[Skin] #ffffffSkin sikeresen felvéve: #00c3ff" .. displayName, p, 255, 255, 255, true)
     end
+
+    local price = skin[2]
+    if getPlayerMoney(p) < price then
+        return outputChatBox("#d9534f[Skin] #ffffffNincs elég pénzed a vásárláshoz! ($" .. price .. ")", p, 255, 255, 255, true)
+    end
+
+    takePlayerMoney(p, price)
+    setElementModel(p, skinID)
+    owned[skinID] = displayName
+    ownedCache[p] = owned
+
+    exports["ttt-sql"]:dbQueryExec("INSERT INTO owned_skins (player_name, skin_id, skin_name, price) VALUES (?, ?, ?, ?)",
+        getPlayerName(p), skinID, displayName, price)
+    exports["ttt-sql"]:dbQueryExec("INSERT INTO shop_logs (player, action, cost) VALUES (?, ?, ?)",
+        getPlayerName(p), "Skin: " .. displayName, price)
+
+    outputChatBox("#7cc576[Skin] #ffffffSikeres vásárlás: #00c3ff" .. displayName, p, 255, 255, 255, true)
+    triggerClientEvent(p, "ttt:addOwnedSkinToClient", p, skinID, displayName)
 end)

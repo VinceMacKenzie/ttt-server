@@ -1,9 +1,8 @@
 Config = {}
 
--- Az adatbázis neve (ahogy korábban beszéltük)
 Config.DatabaseName = "ttt_server"
 
--- Slot típusok definíciója
+-- Slot típusok
 Config.Slots = {
     STORAGE = 0,    -- Táska/Inventory
     PRIMARY = 1,    -- Nagyfegyver (Sárga)
@@ -21,26 +20,25 @@ Config.WeaponDefaults = {
     [25] = { name = "Shotgun", defaultAmmo = 1, baseDamage = 10 } -- 10 per sörét
 }
 
--- Buffok listája (Itt adhatod meg a nevüket és az esélyeket)
+-- Buffok (chance = % esély pörgetésnél / találatnál, duration = mp)
 Config.Buffs = {
-    ["fire"] = { label = "Tűz", chance = 10, duration = 5 }, -- 10% esély, 5 mp
-    ["stun"] = { label = "Sokk", chance = 5, duration = 2 },
-    ["poison"] = { label = "Méreg", chance = 15, duration = 8 },
-    ["life_drain"] = { label = "Életelszívás", amount = 5 } -- 5 HP-t ad vissza
+    fire       = { label = "Tűz", chance = 20, duration = 3 },
+    stun       = { label = "Sokk", chance = 5, duration = 2 },
+    poison     = { label = "Méreg", chance = 10, duration = 8 },
+    life_drain = { label = "Életelszívás", amount = 5 } -- 5 HP-t ad vissza
 }
 
--- Átkok listája
+-- Átkok
 Config.Curses = {
-    ["recoil"] = { label = "Nagy visszarúgás" },
-    ["heavy"] = { label = "Lassú mozgás" },
-    ["jam"] = { label = "Beragadás esély" }
+    recoil = { label = "Nagy visszarúgás" },
+    heavy  = { label = "Lassú mozgás" },
+    jam    = { label = "Beragadás esély" }
 }
 
--- Sebzés szorzók határértékei (Pörgetésnél ezek közé essen az érték)
-Config.MinOptValue = 5   -- 5%
-Config.MaxOptValue = 20  -- 35%
+-- Sebzés szorzók határértékei pörgetésnél (%)
+Config.MinOptValue = 5
+Config.MaxOptValue = 20
 
--- Színkódok a GUI-hoz (Hogy ne kelljen mindenhol beírni)
 Config.Colors = {
     GREEN = {0, 255, 0},
     YELLOW = {255, 255, 0},

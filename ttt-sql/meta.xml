@@ -1,7 +1,17 @@
 <meta>
-    <info author="Gemini" type="script" name="TTT SQL Handler" />
+    <info author="Gemini" type="script" name="TTT SQL Handler" version="1.1.0" />
     <script src="sourceS.lua" type="server" />
-    
+
+    <!-- Adatbázis beállítások: módosítsd itt, vagy írd felül az mtaserver.conf <settings> részében
+         (pl. <setting name="*ttt-sql.db_pass" value="titkos" />) -->
+    <settings>
+        <setting name="*db_host" value="192.168.1.50" />
+        <setting name="*db_port" value="3306" />
+        <setting name="*db_name" value="ttt_server" />
+        <setting name="*db_user" value="paddy" />
+        <setting name="*db_pass" value="paddy" />
+    </settings>
+
     <export function="dbQueryExec" type="server" />
     <export function="dbQuery" type="server" />
     <export function="getDatabaseHandler" type="server" />

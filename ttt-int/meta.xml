@@ -1,0 +1,12 @@
+<meta>
+    <info author="TTT" type="script" version="2.0.0" name="TTT Interiors + Spawns" />
+    <script src="interiors.lua" type="shared" />
+    <script src="config.lua" type="server" />
+    <script src="server.lua" type="server" />
+    <script src="client.lua" type="client" />
+
+    <!-- exports["ttt-interiors"]:getRandomSpawn("Caligulas Casino")  ->  x, y, z, rot, interior -->
+    <export function="getRandomSpawn" type="server" />
+    <!-- exports["ttt-interiors"]:spawnWeapons("Caligulas Casino")    ->  a fegyverek újradobása -->
+    <export function="spawnWeapons" type="server" />
+</meta>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    /* Animált emoji (gif / webp). A böngésző maga játssza le és ismétli a képet. */
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
+    img { display: block; width: 100%; height: 100%; object-fit: contain; }
+</style>
+</head>
+<body>
+<img id="e" alt="">
+<script>
+    // A Lua hívja: setup("kappa", "gif")
+    function setup(name, ext) {
+        document.getElementById('e').src = 'emojis/' + name + '/emoji.' + ext;
+    }
+</script>
+</body>
+</html>
