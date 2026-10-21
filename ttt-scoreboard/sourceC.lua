@@ -6,6 +6,9 @@ local mainCyan = tocolor(0, 195, 255, 150)
 local mainGreen = tocolor(46, 204, 113, 200)
 local mainBg = tocolor(0, 15, 25, 230)
 
+-- Traitor háttér a neveknél: ugyanaz a piros, mint a ttt-hud bal alsó szerep sávja (231, 76, 60)
+local traitorBg = tocolor(231, 76, 60, 90)
+
 local adminRanks = {
     [1] = {name = "Admin", rgb = {54, 168, 100}},
     [2] = {name = "Főadmin", rgb = {57, 174, 247}},
@@ -90,6 +93,9 @@ addEventHandler("onClientRender", root, function()
         dxDrawText(h.n, x + h.x, y + 12, x + h.x + h.w, 0, tocolor(0, 195, 255, 200), 0.55, "bankgothic", "left", "top")
     end
 
+    -- Csak Traitorként látod a társaid (és a saját) piros hátterét
+    local viewerIsTraitor = getElementData(localPlayer, "tttRole") == "Traitor"
+
     -- Játékosok
     for i, p in ipairs(players) do
         local py = y + headerHeight + (i-1) * rowHeight
@@ -102,6 +108,16 @@ addEventHandler("onClientRender", root, function()
         -- Ez garantáltan olvasható és nem lesz óriási.
         local pLevel = tonumber(getElementData(p, "admin")) or 0
         local startX = x + 55
+
+        if viewerIsTraitor and getElementData(p, "tttRole") == "Traitor" then
+            local shown = getPlayerName(p)
+            if getElementData(p, "chatCss") and chatFxRunning() then shown = (shown:gsub("#%x%x%x%x%x%x", "")) end
+            local w = dxGetTextWidth(shown, 1, "default-bold")
+            if pLevel >= 1 and adminRanks[pLevel] then
+                w = w + dxGetTextWidth("[" .. adminRanks[pLevel].name .. "] ", 1, "default-bold")
+            end
+            dxDrawRectangle(startX - 6, py + 5, w + 12, rowHeight - 10, traitorBg)
+        end
         
         if pLevel >= 1 and adminRanks[pLevel] then
             local rank = adminRanks[pLevel]

@@ -27,11 +27,11 @@ addEventHandler("onClientRender", root, function()
     local vx, vy, vz = getElementVelocity(localPlayer)
     local move = 0
     if (vx * vx + vy * vy + vz * vz) >= 0.0004 then
-        if getControlState("sprint") then move = 3
-        elseif getControlState("walk") then move = 1
+        if getPedControlState("sprint") then move = 3
+        elseif getPedControlState("walk") then move = 1
         else move = 2 end
     end
-    local aim = getControlState("aim_weapon") and 1 or 0
+    local aim = getPedControlState("aim_weapon") and 1 or 0
     local fire = firedSinceLastSend and 1 or 0
     firedSinceLastSend = false
     triggerServerEvent("ttt:replayCam", localPlayer, cx, cy, cz, lx, ly, lz, move, aim, fire)

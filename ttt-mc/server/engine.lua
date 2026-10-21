@@ -313,14 +313,14 @@ end
 function Engine.playerInput(player, input, param, activator, caller)
     local li = string.lower(input or "")
     if li == "ignite" then
-        setPedOnFire(player, true)
-        setTimer(function() if isElement(player) then setPedOnFire(player, false) end end, 10000, 1)
+        setElementOnFire(player, true)
+        setTimer(function() if isElement(player) then setElementOnFire(player, false) end end, 10000, 1)
     elseif li == "ignitelifetime" then
         local t = tonumber(param) or 10
-        setPedOnFire(player, true)
-        setTimer(function() if isElement(player) then setPedOnFire(player, false) end end, math.max(50, t * 1000), 1)
+        setElementOnFire(player, true)
+        setTimer(function() if isElement(player) then setElementOnFire(player, false) end end, math.max(50, t * 1000), 1)
     elseif li == "extinguish" then
-        setPedOnFire(player, false)
+        setElementOnFire(player, false)
     elseif li == "kill" then
         -- removing a player entity in Source kills it
         Bridge.damagePlayer(player, 1000, nil, "map")
