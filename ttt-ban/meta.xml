@@ -1,0 +1,8 @@
+<meta>
+    <info author="VinceMacKenzie" type="script" name="TTT Ban" version="1.0.0" description="Ban ellenőrzés belépéskor, sötét képernyő a bannolt játékosnak" />
+    <script src="sourceS.lua" type="server" />
+    <script src="sourceC.lua" type="client" />
+
+    <export function="applyBan" type="server" />
+    <export function="liftBan" type="server" />
+</meta>
