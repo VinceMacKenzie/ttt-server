@@ -3,7 +3,7 @@
 -----------------------------------------
 local START_MONEY = 1000
 local START_SKIN = 0
-local SPAWN = {1948.875, -1713.143, 13.547}
+local SPAWN = {-5.651, -24.687, 615.000}
 
 -- Megjegyzés: a callback-es lekérdezéseket közvetlenül a DB handlerrel futtatjuk,
 -- mert MTA-ban exportokon keresztül nem lehet függvényt (callback-et) átadni.

@@ -3,8 +3,8 @@
 -----------------------------------------
 setGameType("TTT")
 
-local SPAWN = {1948.875, -1713.143, 13.547}
-local MIN_PLAYERS = 2          -- Teszteléshez 1, élesben 2+
+local SPAWN = {-5.651, -24.687, 615.000}
+local MIN_PLAYERS = 1          -- Teszteléshez 1, élesben 2+
 local ROUND_RESTART_DELAY = 10000
 
 local roundTimer = nil
@@ -12,6 +12,36 @@ local startTimer = nil
 local roundDuration = 150
 local isRoundRunning = false
 local corpses = {}             -- {ped, ped, ...} - kör végén töröljük
+
+-----------------------------------------
+-- JUTALMAK (a győztes csapat minden tagja kap pénzt a kör végén)
+-----------------------------------------
+local REWARD = { Innocent = 250, Detective = 500, Traitor = 500 }   -- szerepenként
+local DEAD_MULTIPLIER = 0.5                                         -- halottként ennyiszeres
+-- Melyik szerepek tartoznak a nyertes csapathoz (a Detective az Innocentekkel nyer)
+local WINNING_ROLES = {
+    Innocent = { Innocent = true, Detective = true },
+    Traitor  = { Traitor = true },
+}
+local participants = {}        -- [player] = { role = "Traitor", dead = false } - a kör elején töltjük fel
+
+local function payoutRound(winner)
+    local winners = WINNING_ROLES[winner]
+    if winners then
+        for player, info in pairs(participants) do
+            if isElement(player) and winners[info.role] then
+                local amount = REWARD[info.role] or 0
+                if info.dead then amount = math.floor(amount * DEAD_MULTIPLIER) end
+                if amount > 0 then
+                    givePlayerMoney(player, amount)
+                    outputChatBox(string.format("#7cc576[TTT] #ffffffGyőzelem jutalom: #7cc576+$%d #ffffff(%s%s)",
+                        amount, info.role, info.dead and ", halottként fél jutalom" or ""), player, 255, 255, 255, true)
+                end
+            end
+        end
+    end
+    participants = {}          -- ne lehessen kétszer kifizetni
+end
 
 addEvent("ttt:onRoundStart", false)
 addEvent("ttt:onRoundEnd", false)
@@ -39,7 +69,10 @@ end
 
 function startTTTRound()
     if isRoundRunning then return end
-    local players = getElementsByType("player")
+    local players = {}
+    for _, p in ipairs(getElementsByType("player")) do
+        if not getElementData(p, "banned") then players[#players + 1] = p end   -- bannolt játékos kimarad
+    end
     if #players < MIN_PLAYERS then return end
 
     isRoundRunning = true
@@ -66,6 +99,11 @@ function startTTTRound()
             setElementData(player, "tttRole", "Innocent")
             outputChatBox("#2ecc71[TTT] Te ÁRTATLAN (Innocent) vagy!", player, 255, 255, 255, true)
         end
+    end
+
+    participants = {}
+    for _, player in ipairs(shuffled) do
+        participants[player] = { role = getElementData(player, "tttRole"), dead = false }
     end
 
     outputChatBox(string.format("#f1c40f[TTT] A kör elkezdődött! Idő: %d:%02d", math.floor(roundDuration / 60), roundDuration % 60), root, 255, 255, 255, true)
@@ -101,12 +139,13 @@ end
 
 function stopTTTRound(winner)
     isRoundRunning = false
+    payoutRound(winner)
     triggerEvent("ttt:onRoundEnd", root, winner or "none")
     if isTimer(roundTimer) then killTimer(roundTimer) end
     triggerClientEvent(root, "ttt:updateTime", root, 0)
     for _, p in ipairs(getElementsByType("player")) do
         setElementData(p, "tttRole", false)
-        setElementFrozen(p, false)
+        if not getElementData(p, "banned") then setElementFrozen(p, false) end
     end
     outputChatBox("#ffffff[TTT] Új kör indul " .. (ROUND_RESTART_DELAY / 1000) .. " másodperc múlva...", root, 255, 255, 255, true)
     scheduleRoundStart(ROUND_RESTART_DELAY)
@@ -197,6 +236,7 @@ end)
 addEventHandler("onPlayerWasted", root, function(totalAmmo, attacker, weapon)
     if isRoundRunning then
         local p = source
+        if participants[p] then participants[p].dead = true end
 
         local timeStr = "00:00"
         if isTimer(roundTimer) then

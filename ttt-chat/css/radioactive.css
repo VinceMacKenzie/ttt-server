@@ -1,0 +1,14 @@
+p {
+    color: #39ff14;
+    text-shadow:
+        0 0 5px #39ff14,
+        0 0 10px #39ff14,
+        0 0 20px #00ff00,
+        0 0 40px #00ff00;
+    animation: toxic-pulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes toxic-pulse {
+    from { filter: drop-shadow(0 0 2px #39ff14); transform: scale(1); }
+    to { filter: drop-shadow(0 0 12px #39ff14); transform: scale(1.02); }
+}

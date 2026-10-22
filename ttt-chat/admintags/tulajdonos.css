@@ -1,0 +1,14 @@
+p {
+            color: #fff;
+            background: #db594b;
+            padding: 4px 16px;
+            border-radius: 2px;
+            box-shadow: 0 0 15px #db594b;
+            animation: fx78-pulse 1s ease-in-out infinite alternate;
+        }
+        @keyframes fx78-pulse {
+            from { box-shadow: 0 0 5px #db594b }
+            to { box-shadow: 0 0 25px #db594b; }
+        }
+
+        /* --- 79. ULTRAVIOLET RAGYOGÁS --- */

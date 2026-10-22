@@ -11,7 +11,8 @@ local OWNER_SERIALS = {
 local adminRanks = {
     [1] = {name = "Admin",      color = "#36a864"},
     [2] = {name = "Főadmin",    color = "#39aef7"},
-    [3] = {name = "Tulajdonos", color = "#db594b"},
+    [3] = {name = "Fejlesztő", color = "#7303fc"},
+    [4] = {name = "Tulajdonos", color = "#db594b"},
 }
 
 local roleNames = { traitor = "Traitor", detective = "Detective", innocent = "Innocent" }
@@ -26,6 +27,7 @@ end
 -- Admin szint: konzol = 3
 local function getLevel(p)
     if isConsole(p) then return 3 end
+    if getElementData(p, "banned") then return 0 end   -- bannolt játékos nem használhat admin parancsot
     return tonumber(getElementData(p, "admin")) or 0
 end
 
@@ -120,9 +122,9 @@ addCommandHandler("fixadmin", function(p)
     if not OWNER_SERIALS[getPlayerSerial(p)] then
         return err(p, "Ez a parancs csak a szerver tulajdonosának elérhető!")
     end
-    setAdminLevel(p, 3)
-    outputChatBox("#7cc576[AdminSystem] #ffffffVisszakaptad a tulajdonosi jogot (3).", p, 255, 255, 255, true)
-    logAdminAction(getPlayerName(p), "fixadmin", getPlayerName(p), "Tulajdonos (3)")
+    setAdminLevel(p, 4)
+    outputChatBox("#7cc576[AdminSystem] #ffffffVisszakaptad a tulajdonosi jogot (4).", p, 255, 255, 255, true)
+    logAdminAction(getPlayerName(p), "fixadmin", getPlayerName(p), "Tulajdonos (4)")
 end)
 
 -----------------------------------------
@@ -133,7 +135,7 @@ end)
 addCommandHandler("setadmin", function(p, cmd, targetName, level)
     if not requireLevel(p, 2) then return end
     local target, lvl = findPlayer(targetName), tonumber(level)
-    if not target or not lvl or lvl < 0 or lvl > 3 then
+    if not target or not lvl or lvl < 0 or lvl > 4 then
         return usage(p, "/setadmin [Név] [0-3]")
     end
     -- Saját szintnél magasabbat csak konzol / tulajdonos adhat
@@ -165,26 +167,11 @@ end
 addCommandHandler("a",  function(p, cmd, ...) adminChat(p, table.concat({...}, " "), 1, "AdminChat",   "#4ae850") end)
 addCommandHandler("fa", function(p, cmd, ...) adminChat(p, table.concat({...}, " "), 2, "FőadminChat", "#39aef7") end)
 
--- Chat prefixek: rang szín + név
-addEventHandler("onPlayerChat", root, function(message, messageType)
-    if messageType ~= 0 then return end
-    cancelEvent()
-    local lvl = getLevel(source)
-    local pName = getPlayerName(source)
-    local rank = adminRanks[lvl]
-    if rank then
-        outputChatBox(rank.color .. "[" .. rank.name .. "] #ffffff" .. pName .. ": " .. message, root, 255, 255, 255, true)
-    else
-        outputChatBox("#ffffff" .. pName .. ": " .. message, root, 255, 255, 255, true)
-    end
-    outputServerLog("CHAT: " .. pName .. ": " .. message)
-end)
-
 -----------------------------------------
 -- PÉNZKEZELÉS (Admin+)
 -----------------------------------------
 local function moneyCommand(p, targetName, amount, mode)
-    if not requireLevel(p, 1) then return end
+    if not requireLevel(p, 3) then return end
     local target, amt = findPlayer(targetName), tonumber(amount)
     if not target or not amt or (mode ~= "set" and amt <= 0) then
         return usage(p, "/" .. (mode == "set" and "setmoney" or mode == "give" and "givemoney" or "revokemoney") .. " [Név] [Összeg]" .. (mode ~= "set" and " (pozitív szám)" or ""))
@@ -371,6 +358,47 @@ addCommandHandler("giveskin", function(p, cmd, targetName, skinID, ...)
     logAdminAction(nameOf(p), "Skin adása", tName, "ID: " .. sID .. " | Név: " .. skinName)
 end)
 
+-- /giveeffect [Név] [effekt kulcs] (Admin+) - aura/effekt adása ingyen (ttt-skin)
+addCommandHandler("giveeffect", function(p, cmd, targetName, key)
+    if not requireLevel(p, 1) then return end
+    local res = getResourceFromName("ttt-skin")
+    if not res or getResourceState(res) ~= "running" then return err(p, "A ttt-skin resource nem fut!") end
+    local target = findPlayer(targetName)
+    if not target or not key then
+        usage(p, "/giveeffect [Név] [kulcs]")
+        return msg(p, "#f1c40f[Effektek] #ffffff" .. table.concat(exports["ttt-skin"]:getEffectKeys(), ", "))
+    end
+    local effectName = exports["ttt-skin"]:giveEffect(target, key)
+    if not effectName then
+        return err(p, "Ismeretlen effekt vagy nincs adatbázis! Kulcsok: " .. table.concat(exports["ttt-skin"]:getEffectKeys(), ", "))
+    end
+    local tName = getPlayerName(target)
+    ok(p, "Adtál egy effektet (" .. effectName .. ") neki: " .. tName)
+    outputChatBox("#7cc576[Effekt] #ffffffKaptál egy új effektet az admintól: #7cc576" .. effectName .. " #ffffff(F4 skin menü -> [3])", target, 255, 255, 255, true)
+    logAdminAction(nameOf(p), "Effekt adása", tName, "Effekt: " .. effectName .. " (" .. key .. ")")
+end)
+
+-- /giveweaponskin [Név] [fegyverID|all] [skin kulcs|all] (Admin+) - fegyverskin adása ingyen (ttt-weaponskin)
+addCommandHandler("giveweaponskin", function(p, cmd, targetName, wid, key)
+    if not requireLevel(p, 1) then return end
+    local res = getResourceFromName("ttt-weaponskin")
+    if not res or getResourceState(res) ~= "running" then return err(p, "A ttt-weaponskin resource nem fut!") end
+    local target = findPlayer(targetName)
+    if not target or not wid or not key then
+        usage(p, "/giveweaponskin [Név] [fegyverID|all] [kulcs|all]")
+        msg(p, "#f1c40f[Fegyverek] #ffffff" .. table.concat(exports["ttt-weaponskin"]:getWeaponSkinWeaponIDs(), ", "))
+        return msg(p, "#f1c40f[Skinek] #ffffff" .. table.concat(exports["ttt-weaponskin"]:getWeaponSkinKeys(), ", "))
+    end
+    local given = exports["ttt-weaponskin"]:giveWeaponSkin(target, wid, key)
+    if not given then
+        return err(p, "Ismeretlen fegyver/skin vagy nincs adatbázis! Skinek: " .. table.concat(exports["ttt-weaponskin"]:getWeaponSkinKeys(), ", "))
+    end
+    local tName = getPlayerName(target)
+    ok(p, "Adtál fegyverskint (" .. given .. ") neki: " .. tName)
+    outputChatBox("#7cc576[Fegyverskin] #ffffffKaptál fegyverskint az admintól: #7cc576" .. given .. " #ffffff(F4 skin menü -> [4])", target, 255, 255, 255, true)
+    logAdminAction(nameOf(p), "Fegyverskin adása", tName, given .. " (" .. wid .. " / " .. key .. ")")
+end)
+
 -- /pskin [ID] (Főadmin+) - skin előnézet saját magadon
 addCommandHandler("pskin", function(p, cmd, skinID)
     if isConsole(p) or not requireLevel(p, 2) then return end
@@ -379,4 +407,260 @@ addCommandHandler("pskin", function(p, cmd, skinID)
     if not setElementModel(p, sID) then return err(p, "Érvénytelen skin ID!") end
     outputChatBox("#00c3ff[Preview-Skin] #ffffffSkin ideiglenesen megváltoztatva: #7cc576" .. sID, p, 255, 255, 255, true)
     outputDebugString("[Admin] " .. getPlayerName(p) .. " pskin-t használt. (Új: " .. sID .. ")")
+end)
+
+-- /goto [Név]
+addCommandHandler("goto", function(p, cmd, targetName)
+    if isConsole(p) or not requireLevel(p, 1) then return end
+    if not targetName then return usage(p, "/goto [Név]") end
+
+    local target = findPlayer(targetName)
+    if not target then return err(p, "Játékos nem található!") end
+    if target == p then return err(p, "Magadhoz nem teleportálhatsz!") end
+
+    -- Pozíció és környezet (Interiőr, Dimenzió) lekérése
+    local x, y, z = getElementPosition(target)
+    local interior = getElementInterior(target)
+    local dimension = getElementDimension(target)
+
+    -- Teleportálás a célpont mellé egy kicsivel
+    setElementInterior(p, interior)
+    setElementDimension(p, dimension)
+    setElementPosition(p, x + 1, y, z)
+
+    ok(p, "Odateleportáltál hozzá: " .. getPlayerName(target))
+    outputChatBox("#7cc576[Admin] #ffffff" .. getPlayerName(p) .. " hozzád teleportált.", target, 255, 255, 255, true)
+    logAdminAction(nameOf(p), "goto", getPlayerName(target), "Teleportálás célponthoz")
+end)
+
+-- /gethere [Név]
+addCommandHandler("gethere", function(p, cmd, targetName)
+    if isConsole(p) or not requireLevel(p, 1) then return end
+    if not targetName then return usage(p, "/gethere [Név]") end
+
+    local target = findPlayer(targetName)
+    if not target then return err(p, "Játékos nem található!") end
+    if target == p then return err(p, "Magadat nem magadhoz teleportálhatod!") end
+
+    -- Pozíció és környezet (Interiőr, Dimenzió) lekérése
+    local x, y, z = getElementPosition(p)
+    local interior = getElementInterior(p)
+    local dimension = getElementDimension(p)
+
+    -- Célpont magunkhoz teleportálása
+    setElementInterior(target, interior)
+    setElementDimension(target, dimension)
+    setElementPosition(target, x + 1, y, z)
+
+    ok(p, "Magadhoz teleportáltad őt: " .. getPlayerName(target))
+    outputChatBox("#7cc576[Admin] #ffffff" .. getPlayerName(p) .. " magához teleportált téged.", target, 255, 255, 255, true)
+    logAdminAction(nameOf(p), "gethere", getPlayerName(target), "Célpont magához teleportálása")
+end)
+
+
+-----------------------------------------
+-- BAN RENDSZER
+-- Az adatok a "bans" táblában vannak. A belépéskori ellenőrzést, a sötét képernyőt és a zárolást
+-- a ttt-ban resource végzi, itt csak a /ban és az /unban parancs van.
+-----------------------------------------
+local BAN_MIN_LEVEL = 1   -- ettől az admin szinttől használható a /ban és az /unban
+
+local function banDB()
+    return exports["ttt-sql"]:getDatabaseHandler()
+end
+
+local function banResourceRunning()
+    local r = getResourceFromName("ttt-ban")
+    return r and getResourceState(r) == "running"
+end
+
+-- A bant az oldhatja fel, aki bannolta, vagy egy nála (a ban pillanatában) magasabb rangú admin.
+-- A konzol mindig feloldhat.
+local function canUnban(p, ban)
+    if isConsole(p) then return true end
+    local myId = tonumber(getElementData(p, "charID")) or 0
+    if myId > 0 and myId == (tonumber(ban.admin_id) or 0) then return true end
+    return getLevel(p) > (tonumber(ban.admin_level) or 0)
+end
+
+-- A célpont adatai: online játékos, vagy (ha nincs fent) a users táblából, pontos név alapján.
+-- (a /ban, /giveskill és /getplayerskill is ezt használja)
+-- callback({player, id, name, serial, level}) vagy callback(nil, "hibaüzenet")
+local function resolveTarget(targetName, callback)
+    local online = findPlayer(targetName)
+    if online then
+        return callback({
+            player = online,
+            id     = tonumber(getElementData(online, "charID")) or 0,
+            name   = getElementData(online, "accName") or getPlayerName(online),
+            serial = getPlayerSerial(online),
+            level  = tonumber(getElementData(online, "admin")) or 0,
+        })
+    end
+    local db = banDB()
+    if not db then return callback(nil, "Az adatbázis nem elérhető!") end
+    dbQuery(function(qh)
+        local res = dbPoll(qh, 0)
+        local row = res and res[1]
+        if not row then return callback(nil, "Nincs ilyen játékos: " .. targetName) end
+        callback({ id = tonumber(row.ID) or 0, name = row["Név"], serial = row.Serial, level = tonumber(row.adminLevel) or 0 })
+    end, {}, db, "SELECT ID, `Név`, Serial, adminLevel FROM users WHERE `Név` = ? LIMIT 1", targetName)
+end
+
+-- /ban [Név] [Indok]
+addCommandHandler("ban", function(p, cmd, targetName, ...)
+    if not requireLevel(p, BAN_MIN_LEVEL) then return end
+    local reason = table.concat({...}, " "):sub(1, 200)
+    if not targetName or reason == "" then return usage(p, "/ban [Név] [Indok]") end
+    local db = banDB()
+    if not db then return err(p, "Az adatbázis nem elérhető!") end
+
+    resolveTarget(targetName, function(target, problem)
+        if p and not isElement(p) then return end   -- az admin közben kilépett
+        if not target then return err(p, problem) end
+        if target.player and target.player == p then return err(p, "Magadat nem bannolhatod!") end
+        if not isConsole(p) and target.level >= getLevel(p) then
+            return err(p, "Nálad magasabb vagy azonos rangú admint nem bannolhatsz!")
+        end
+
+        dbQuery(function(qh)
+            if p and not isElement(p) then return end
+            local res = dbPoll(qh, 0)
+            if res and res[1] then return err(p, target.name .. " már bannolva van!") end
+
+            exports["ttt-sql"]:dbQueryExec(
+                "INSERT INTO bans (user_id, player_name, serial, admin_id, admin_name, admin_level, reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                target.id, target.name, target.serial,
+                isConsole(p) and 0 or (tonumber(getElementData(p, "charID")) or 0), nameOf(p), getLevel(p), reason)
+
+            outputChatBox("#d9534f[Ban] #ffffff" .. target.name .. " bannolva lett (" .. nameOf(p) .. "). Indok: " .. reason, root, 255, 255, 255, true)
+            if target.player then
+                if banResourceRunning() then
+                    exports["ttt-ban"]:applyBan(target.player, nameOf(p), reason)
+                else
+                    err(p, "A ttt-ban resource nem fut, a ban az indításakor lép életbe.")
+                end
+            end
+            logAdminAction(nameOf(p), "ban", target.name, reason)
+        end, {}, db, "SELECT id FROM bans WHERE serial = ? AND active = 1 LIMIT 1", target.serial)
+    end)
+end)
+
+-- /unban [Név]
+addCommandHandler("unban", function(p, cmd, targetName)
+    if not requireLevel(p, BAN_MIN_LEVEL) then return end
+    if not targetName then return usage(p, "/unban [Név]") end
+    local db = banDB()
+    if not db then return err(p, "Az adatbázis nem elérhető!") end
+
+    dbQuery(function(qh)
+        if p and not isElement(p) then return end
+        local res = dbPoll(qh, 0)
+        local ban = res and res[1]
+        if not ban then return err(p, "Nincs aktív ban ezen a néven: " .. targetName) end
+        if not canUnban(p, ban) then
+            return err(p, "Ezt a bant csak " .. ban.admin_name .. " vagy nála magasabb rangú admin oldhatja fel!")
+        end
+
+        exports["ttt-sql"]:dbQueryExec("UPDATE bans SET active = 0, unbanned_by = ?, unbanned_at = NOW() WHERE serial = ? AND active = 1", nameOf(p), ban.serial)
+        if banResourceRunning() then exports["ttt-ban"]:liftBan(ban.serial) end
+        outputChatBox("#7cc576[Unban] #ffffff" .. ban.player_name .. " bannja fel lett oldva (" .. nameOf(p) .. ").", root, 255, 255, 255, true)
+        logAdminAction(nameOf(p), "unban", ban.player_name, "Ban feloldva (eredeti indok: " .. ban.reason .. ")")
+    end, {}, db, "SELECT b.* FROM bans b LEFT JOIN users u ON u.ID = b.user_id WHERE (b.player_name = ? OR u.`Név` = ?) AND b.active = 1 ORDER BY b.id DESC LIMIT 1", targetName, targetName)
+end)
+
+
+-----------------------------------------
+-- SKILL PARANCSOK
+-- A skilleket (skills tábla, ölés utáni pontok, F1 HUD) a ttt-skill resource kezeli.
+-----------------------------------------
+local function skillResourceRunning()
+    local r = getResourceFromName("ttt-skill")
+    return r and getResourceState(r) == "running"
+end
+
+-- Kiírja egy játékos skilljeit. values = { skill_Pistol = 3, ... }
+local function showSkills(p, name, values)
+    msg(p, "#00c3ff[Skill] #ffffff" .. name .. " skilljei:")
+    local keys = exports["ttt-skill"]:getSkillKeys()
+    local line = {}
+    for i, key in ipairs(keys) do
+        line[#line + 1] = key .. ": #00c3ff" .. (tonumber(values[key]) or 0) .. "#ffffff"
+        if #line == 4 or i == #keys then
+            msg(p, table.concat(line, "  |  "))
+            line = {}
+        end
+    end
+end
+
+-- /giveskill [Név] [típus, pl. skill_Pistol] [érték]   (2-es admin)
+-- Az érték hozzáadódik a meglévőhöz; negatív érték levon (0 és 1000 között marad).
+addCommandHandler("giveskill", function(p, cmd, targetName, skillType, amountStr)
+    if not requireLevel(p, 2) then return end
+    local amount = tonumber(amountStr)
+    if not targetName or not skillType or not amount then
+        return usage(p, "/giveskill [Név] [típus, pl. skill_Pistol] [érték]")
+    end
+    if not skillResourceRunning() then return err(p, "A ttt-skill resource nem fut!") end
+
+    amount = math.floor(amount)
+    if amount == 0 or math.abs(amount) > 1000 then
+        return err(p, "Az érték -1000 és 1000 közötti, nullától eltérő szám legyen (a skill maximuma 1000)!")
+    end
+
+    local keys, key = exports["ttt-skill"]:getSkillKeys(), nil
+    for _, k in ipairs(keys) do
+        if k:lower() == skillType:lower() then key = k end   -- a kis/nagybetű nem számít
+    end
+    if not key then return err(p, "Ismeretlen típus! Elérhető: " .. table.concat(keys, ", ")) end
+
+    resolveTarget(targetName, function(target, problem)
+        if p and not isElement(p) then return end
+        if not target then return err(p, problem) end
+        if target.id <= 0 then return err(p, target.name .. " még nincs betöltve, próbáld később!") end
+
+        if not exports["ttt-skill"]:giveSkill(target.id, key, amount) then
+            return err(p, "A skill módosítása nem sikerült (adatbázis?).")
+        end
+        local sign = amount > 0 and "+" or ""
+        ok(p, target.name .. " " .. key .. " skilljéhez " .. sign .. amount .. " pont lett adva.")
+        if target.player then
+            outputChatBox("#00c3ff[Skill] #ffffff" .. nameOf(p) .. " módosította a(z) " .. key .. " skilledet: " .. sign .. amount,
+                target.player, 255, 255, 255, true)
+        end
+        logAdminAction(nameOf(p), "giveskill", target.name, key .. " " .. sign .. amount)
+    end)
+end)
+
+-- /getplayerskill [Név]   (1-es admin; név nélkül a sajátodat írja ki)
+addCommandHandler("getplayerskill", function(p, cmd, targetName)
+    if not requireLevel(p, 1) then return end
+    if not targetName then
+        if isConsole(p) then return usage(p, "/getplayerskill [Név]") end
+        targetName = getPlayerName(p)
+    end
+    if not skillResourceRunning() then return err(p, "A ttt-skill resource nem fut!") end
+
+    resolveTarget(targetName, function(target, problem)
+        if p and not isElement(p) then return end
+        if not target then return err(p, problem) end
+
+        -- online: az elementData-ból, offline: az adatbázisból
+        if target.player then
+            local values = {}
+            for _, key in ipairs(exports["ttt-skill"]:getSkillKeys()) do
+                values[key] = getElementData(target.player, key)
+            end
+            return showSkills(p, target.name, values)
+        end
+
+        local db = banDB()
+        if not db then return err(p, "Az adatbázis nem elérhető!") end
+        dbQuery(function(qh)
+            if p and not isElement(p) then return end
+            local res = dbPoll(qh, 0)
+            if not res then return err(p, "A skillek lekérdezése nem sikerült.") end
+            showSkills(p, target.name, res[1] or {})
+        end, {}, db, "SELECT * FROM skills WHERE user_id = ? LIMIT 1", target.id)
+    end)
 end)

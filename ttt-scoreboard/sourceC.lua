@@ -6,10 +6,14 @@ local mainCyan = tocolor(0, 195, 255, 150)
 local mainGreen = tocolor(46, 204, 113, 200)
 local mainBg = tocolor(0, 15, 25, 230)
 
+-- Traitor háttér a neveknél: ugyanaz a piros, mint a ttt-hud bal alsó szerep sávja (231, 76, 60)
+local traitorBg = tocolor(231, 76, 60, 90)
+
 local adminRanks = {
     [1] = {name = "Admin", rgb = {54, 168, 100}},
     [2] = {name = "Főadmin", rgb = {57, 174, 247}},
-    [3] = {name = "Tulajdonos", rgb = {219, 89, 75}}
+    [3] = {name = "Fejlesztő", rgb = {115, 3, 252}},
+    [4] = {name = "Tulajdonos", rgb = {219, 89, 75}}
 }
 
 -- Fejléc kiosztás (Tágasabb oszlopok)
@@ -49,10 +53,30 @@ local function formatNumber(amount)
     return formatted
 end
 
+-- Név kirajzolása: ha a játékosnak van chat effektje (ttt-chat), azzal, különben sima fehér szöveggel
+local function chatFxRunning()
+    local res = getResourceFromName("ttt-chat")
+    return res and getResourceState(res) == "running"
+end
+
+local function drawPlayerName(p, nameX, py)
+    local fx = getElementData(p, "chatCss")
+    if fx and chatFxRunning() then
+        local name = (getPlayerName(p):gsub("#%x%x%x%x%x%x", ""))
+        local textW = math.ceil(dxGetTextWidth(name, 1, "default-bold"))
+        -- y = py + 6: így a név függőleges közepe egy vonalba esik a többi oszloppal
+        if exports["ttt-chat"]:drawChatNameFx(fx, name, nameX, py + 6, textW, 255) then return end
+    end
+    dxDrawText(getPlayerName(p), nameX, py + 10, 0, 0, tocolor(255, 255, 255, 255), 1, "default-bold")
+end
+
 addEventHandler("onClientRender", root, function()
     if not isVisible then return end
 
-    local players = getElementsByType("player")
+    local players = {}
+    for _, pl in ipairs(getElementsByType("player")) do
+        if not getElementData(pl, "banned") then players[#players + 1] = pl end   -- bannolt játékos nem szerepel
+    end
     local now = getRealTime().timestamp
     local rowHeight = 35
     local headerHeight = 40
@@ -72,6 +96,9 @@ addEventHandler("onClientRender", root, function()
         dxDrawText(h.n, x + h.x, y + 12, x + h.x + h.w, 0, tocolor(0, 195, 255, 200), 0.55, "bankgothic", "left", "top")
     end
 
+    -- Csak Traitorként látod a társaid (és a saját) piros hátterét
+    local viewerIsTraitor = getElementData(localPlayer, "tttRole") == "Traitor"
+
     -- Játékosok
     for i, p in ipairs(players) do
         local py = y + headerHeight + (i-1) * rowHeight
@@ -84,6 +111,16 @@ addEventHandler("onClientRender", root, function()
         -- Ez garantáltan olvasható és nem lesz óriási.
         local pLevel = tonumber(getElementData(p, "admin")) or 0
         local startX = x + 55
+
+        if viewerIsTraitor and getElementData(p, "tttRole") == "Traitor" then
+            local shown = getPlayerName(p)
+            if getElementData(p, "chatCss") and chatFxRunning() then shown = (shown:gsub("#%x%x%x%x%x%x", "")) end
+            local w = dxGetTextWidth(shown, 1, "default-bold")
+            if pLevel >= 1 and adminRanks[pLevel] then
+                w = w + dxGetTextWidth("[" .. adminRanks[pLevel].name .. "] ", 1, "default-bold")
+            end
+            dxDrawRectangle(startX - 6, py + 5, w + 12, rowHeight - 10, traitorBg)
+        end
         
         if pLevel >= 1 and adminRanks[pLevel] then
             local rank = adminRanks[pLevel]
@@ -92,9 +129,9 @@ addEventHandler("onClientRender", root, function()
             local tagW = dxGetTextWidth(rankTag, 1, "default-bold")
             
             dxDrawText(rankTag, startX, py + 10, 0, 0, tocolor(r, g, b, 255), 1, "default-bold")
-            dxDrawText(getPlayerName(p), startX + tagW, py + 10, 0, 0, tocolor(255, 255, 255, 255), 1, "default-bold")
+            drawPlayerName(p, startX + tagW, py)
         else
-            dxDrawText(getPlayerName(p), startX, py + 10, 0, 0, tocolor(255, 255, 255, 255), 1, "default-bold")
+            drawPlayerName(p, startX, py)
         end
 
         -- Értékek (szintén default fonttal a biztonság kedvéért)

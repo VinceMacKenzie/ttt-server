@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    /* ALAP stílus - ezt minden effekt örökli. A méretek ide vannak belőve, ezeket NE írd felül a css fájlokban! */
+    html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+    body { padding: 16px 0 0 6px; }           /* hely a lángoknak/ragyogásnak: 16px fent, 6px balra */
+    p {
+        margin: 0; padding: 0;
+        display: inline-block;
+        white-space: nowrap;
+        font: bold 14px/22px Tahoma, Verdana, Arial, sans-serif;
+        color: #ffffff;
+    }
+</style>
+</head>
+<body>
+<p id="n"></p>
+<script>
+    // A Lua hívja: setup("fire", "Játékos", 64)
+    function setup(effect, name, targetW) {
+        var p = document.getElementById('n');
+        p.textContent = name;
+        p.setAttribute('data-text', name);      // a ::before / ::after így éri el: content: attr(data-text)
+
+        // a betűméretet úgy állítjuk be, hogy a szöveg pont akkora legyen, mint a chat DX szövege
+        var w = p.getBoundingClientRect().width;
+        if (w > 0 && targetW > 0) {
+            p.style.fontSize = Math.max(8, Math.min(26, 14 * targetW / w)) + 'px';
+        }
+
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'css/' + effect + '.css';
+        document.head.appendChild(l);
+    }
+</script>
+</body>
+</html>

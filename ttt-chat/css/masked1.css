@@ -1,0 +1,18 @@
+/* MASKED1 - az animált kép (css/1x.webp) a betűkre maszkolva, neon körvonallal és dupla ragyogással */
+p {
+    /* a betű kitöltése átlátszó, a háttérkép látszik át rajta */
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+
+    /* a kép a css fájllal egy mappában van, ezért elég a fájlnév */
+    background-image: url("1x.webp");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    font-size: 1.5em;
+
+    /* vöröses-rózsaszín körvonal (vékony, mert a chat betűi kicsik) */
+    -webkit-text-stroke: 0.7px #ff0055;
+}

@@ -120,7 +120,8 @@ local maxDistance = 18
 local adminRanks = {
     [1] = {name = "Admin", r = 54, g = 168, b = 100},
     [2] = {name = "Főadmin", r = 57, g = 174, b = 247},
-    [3] = {name = "Tulajdonos", r = 219, g = 89, b = 75}
+    [3] = {name = "Fejlesztő", r = 115, g = 3, b = 252},
+    [4] = {name = "Tulajdonos", r = 219, g = 89, b = 75}
 }
 
 addEventHandler("onClientRender", root, function()
@@ -210,3 +211,6 @@ addEventHandler("onClientResourceStart", resourceRoot, function()
 end)
 
 -- Az "M" kurzor bind a ttt-core-ban van (itt duplán volt, és a két bind kioltotta egymást).
+bindKey("m", "down", function()
+    showCursor(not isCursorShowing())
+end)

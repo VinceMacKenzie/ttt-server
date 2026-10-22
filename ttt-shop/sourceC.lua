@@ -2,7 +2,7 @@ local screenW, screenH = guiGetScreenSize()
 local isShopVisible = false
 local currentTab = "SHOP"
 
-local shopW, shopH = 400, 520
+local shopW, shopH = 470, 520
 local sx, sy = (screenW - shopW) / 2, (screenH - shopH) / 2
 
 local selectedIdx = 1
@@ -11,7 +11,44 @@ local maxVisibleItems = 7
 
 local traitorRed = tocolor(231, 76, 60, 255)
 local detectiveBlue = tocolor(52, 152, 219, 255)
-local tabs = {"SHOP", "SKILLEK", "SKINEK"}
+local tabs = {"SHOP", "SKILLEK", "EFFEKTEK", "FEGYVERSKIN", "SKINEK"}
+
+-- Effektek (aurák): a listát és a tulajdonlást a ttt-skin adja, itt csak cache-eljük
+local effectItems = {}
+local function refreshEffects()
+    effectItems = {}
+    local res = getResourceFromName("ttt-skin")
+    if not res or getResourceState(res) ~= "running" then return end
+    local ok, list = pcall(function() return exports["ttt-skin"]:getEffectShopList() end)
+    if not ok or type(list) ~= "table" then return end
+    for i, e in ipairs(list) do
+        effectItems[i] = {name = e.name, price = e.price, index = i, key = e.key, owned = e.owned, active = e.active, desc = e.desc}
+    end
+end
+addEvent("ttt:onEffectsChanged", false)
+addEventHandler("ttt:onEffectsChanged", root, refreshEffects)
+
+-- Fegyverskinek: a listát és a tulajdonlást a ttt-weaponskin adja, fegyverenként lapozva
+local wskinWeapons, wskinWeaponIdx, wskinItems = {}, 1, {}
+local function refreshWeaponSkins()
+    wskinItems = {}
+    local res = getResourceFromName("ttt-weaponskin")
+    if not res or getResourceState(res) ~= "running" then wskinWeapons = {} return end
+    local ok, weapons = pcall(function() return exports["ttt-weaponskin"]:getWeaponSkinWeaponList() end)
+    if not ok or type(weapons) ~= "table" then return end
+    wskinWeapons = weapons
+    if wskinWeaponIdx > #wskinWeapons then wskinWeaponIdx = 1 end
+    local w = wskinWeapons[wskinWeaponIdx]
+    if not w then return end
+    local ok2, list = pcall(function() return exports["ttt-weaponskin"]:getWeaponSkinShopList(w.id) end)
+    if not ok2 or type(list) ~= "table" then return end
+    for i, e in ipairs(list) do
+        wskinItems[i] = {name = e.name, price = e.price, index = i, key = e.key, weaponID = w.id, owned = e.owned, active = e.active,
+            desc = e.catLabel .. " • " .. (e.desc or ""), available = e.available, lockedText = "SZEZONON KÍVÜL"}
+    end
+end
+addEvent("ttt:onWeaponSkinsChanged", false)
+addEventHandler("ttt:onWeaponSkinsChanged", root, function() if currentTab == "FEGYVERSKIN" then refreshWeaponSkins() end end)
 
 -- Aktuálisan látható tárgyak: {item = ShopItems[i], index = i}
 local currentVisibleItems = {}
@@ -43,6 +80,10 @@ local function getCurrentList()
         local list = {}
         for i, s in ipairs(ShopSkills) do list[i] = {name = s[1], price = s[2], index = i, available = s[4] ~= nil} end
         return list
+    elseif currentTab == "EFFEKTEK" then
+        return effectItems
+    elseif currentTab == "FEGYVERSKIN" then
+        return wskinItems
     end
     return {}
 end
@@ -68,10 +109,18 @@ local function drawUniversalShop()
         else
             dxDrawRectangle(tx, sy - 30, tabW, 30, tocolor(0, 0, 0, 200))
         end
-        dxDrawText(tabName, tx, sy - 30, tx + tabW, sy, tocolor(255, 255, 255), 1, "default-bold", "center", "center")
+        dxDrawText(tabName, tx, sy - 30, tx + tabW, sy, tocolor(255, 255, 255), 0.95, "default-bold", "center", "center")
     end
 
-    dxDrawText(isTraitor and "TRAITOR BLACK MARKET" or "ARMORY", sx, sy + 10, sx + shopW, sy + 40, themeColor, isTraitor and 0.85 or 1.4, "bankgothic", "center", "center")
+    if currentTab == "FEGYVERSKIN" then
+        -- fegyver választó: ◄ / ► (bal/jobb nyíl vagy kattintás)
+        local w = wskinWeapons[wskinWeaponIdx]
+        dxDrawText("◄", sx + 15, sy + 5, sx + 55, sy + 50, isMouseInPosition(sx + 5, sy + 5, 50, 45) and themeColor or tocolor(255, 255, 255), 1.6, "default-bold", "center", "center")
+        dxDrawText("►", sx + shopW - 55, sy + 5, sx + shopW - 15, sy + 50, isMouseInPosition(sx + shopW - 55, sy + 5, 50, 45) and themeColor or tocolor(255, 255, 255), 1.6, "default-bold", "center", "center")
+        dxDrawText(w and w.name:upper() or "NEM ELÉRHETŐ", sx + 55, sy + 5, sx + shopW - 55, sy + 50, tocolor(255, 255, 255), 1.4, "default-bold", "center", "center")
+    else
+        dxDrawText(isTraitor and "TRAITOR BLACK MARKET" or "ARMORY", sx, sy + 10, sx + shopW, sy + 40, themeColor, isTraitor and 0.85 or 1.4, "bankgothic", "center", "center")
+    end
 
     -- Lista
     local list = getCurrentList()
@@ -89,13 +138,19 @@ local function drawUniversalShop()
         if isSelected then dxDrawRectangle(sx + 10, itemY, 4, 55, themeColor) end
 
         local nameColor = (entry.available == false) and tocolor(150, 150, 150, 180) or tocolor(255, 255, 255, 220)
-        dxDrawText(entry.name:upper(), sx + 30, itemY, 0, itemY + 55, nameColor, 1.1, "default-bold", "left", "center")
+        if entry.desc then
+            dxDrawText(entry.name, sx + 30, itemY + 4, sx + shopW - 110, itemY + 30, nameColor, 1.1, "default-bold", "left", "center", true)
+            dxDrawText(entry.desc, sx + 30, itemY + 28, sx + shopW - 30, itemY + 52, tocolor(255, 255, 255, 120), 0.85, "default", "left", "center", true)
+        else
+            dxDrawText(entry.name:upper(), sx + 30, itemY, 0, itemY + 55, nameColor, 1.1, "default-bold", "left", "center")
+        end
 
         local priceTxt
-        if entry.available == false then priceTxt = "HAMAROSAN"
+        if entry.owned then priceTxt = entry.active and "AKTÍV" or "MEGVAN"
+        elseif entry.available == false then priceTxt = entry.lockedText or "HAMAROSAN"
         elseif entry.price == 0 then priceTxt = "INGYENES"
         else priceTxt = "$" .. entry.price end
-        dxDrawText(priceTxt, sx, itemY, sx + shopW - 30, itemY + 55, isSelected and themeColor or tocolor(255, 255, 255, 120), 1.2, "default-bold", "right", "center")
+        dxDrawText(priceTxt, sx, itemY + (entry.desc and -10 or 0), sx + shopW - 30, itemY + 55 + (entry.desc and -10 or 0), isSelected and themeColor or tocolor(255, 255, 255, 120), 1.2, "default-bold", "right", "center")
     end
 
     -- Görgetősáv
@@ -120,11 +175,27 @@ local function buySelected(list)
         triggerServerEvent("ttt:buyItem", localPlayer, entry.index)
     elseif currentTab == "SKILLEK" then
         triggerServerEvent("ttt:buySkill", localPlayer, entry.index)
+    elseif currentTab == "EFFEKTEK" then
+        if entry.owned then
+            outputChatBox("#f1c40f[Effekt] #ffffffEz már a tiéd! Felvenni az #00c3ffF4 #ffffffskin menü #00c3ff[3] #fffffffülén tudod.", 255, 255, 255, true)
+        else
+            triggerServerEvent("ttt:buyEffect", localPlayer, entry.key)
+        end
+    elseif currentTab == "FEGYVERSKIN" then
+        if entry.owned then
+            outputChatBox("#f1c40f[Fegyverskin] #ffffffEz már a tiéd! Felvenni az #00c3ffF4 #ffffffskin menü #00c3ff[4] #fffffffülén tudod.", 255, 255, 255, true)
+        elseif entry.available == false then
+            outputChatBox("#f1c40f[Fegyverskin] #ffffffEz a skin most nem vásárolható, csak a saját szezonjában!", 255, 255, 255, true)
+        else
+            triggerServerEvent("ttt:buyWeaponSkin", localPlayer, entry.weaponID, entry.key)
+        end
     end
 end
 
 local function switchTab(tabName)
     currentTab, selectedIdx, scrollOffset = tabName, 1, 0
+    if tabName == "EFFEKTEK" then refreshEffects() end
+    if tabName == "FEGYVERSKIN" then refreshWeaponSkins() end
 end
 
 local function handleShopInput(button, press)
@@ -141,11 +212,26 @@ local function handleShopInput(button, press)
         return
     end
 
+    -- Fegyverskin fül: fegyver lapozása
+    if currentTab == "FEGYVERSKIN" and #wskinWeapons > 0 then
+        local dir
+        if button == "arrow_l" then dir = -1 elseif button == "arrow_r" then dir = 1
+        elseif button == "mouse1" and isMouseInPosition(sx + 5, sy + 5, 50, 45) then dir = -1
+        elseif button == "mouse1" and isMouseInPosition(sx + shopW - 55, sy + 5, 50, 45) then dir = 1 end
+        if dir then
+            wskinWeaponIdx = ((wskinWeaponIdx - 1 + dir) % #wskinWeapons) + 1
+            selectedIdx, scrollOffset = 1, 0
+            refreshWeaponSkins()
+            return
+        end
+    end
+
     if button == "mouse1" then
         local tabW = shopW / #tabs
-        if isMouseInPosition(sx, sy - 30, tabW, 30) then return switchTab("SHOP") end
-        if isMouseInPosition(sx + tabW, sy - 30, tabW, 30) then return switchTab("SKILLEK") end
-        if isMouseInPosition(sx + tabW * 2, sy - 30, tabW, 30) then
+        for i, tabName in ipairs(tabs) do
+            if tabName ~= "SKINEK" and isMouseInPosition(sx + tabW * (i - 1), sy - 30, tabW, 30) then return switchTab(tabName) end
+        end
+        if isMouseInPosition(sx + tabW * (#tabs - 1), sy - 30, tabW, 30) then
             toggleShop()
             local skinRes = getResourceFromName("ttt-skin")
             if skinRes and getResourceState(skinRes) == "running" then

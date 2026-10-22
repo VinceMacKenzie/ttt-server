@@ -1,0 +1,54 @@
+<meta>
+    <info author="Claude" type="script" version="1.1.0" name="TTT Weapon Skins" description="Szezonális fegyverskinek (shader alapú, játékosonként)" />
+
+    <script src="shared.lua" type="shared" />
+    <script src="client.lua" type="client" cache="false" />
+    <script src="menuC.lua" type="client" cache="false" />
+    <script src="server.lua" type="server" />
+
+    <file src="weaponskin.fx" />
+    <!-- Minták (+ _e = világító maszk) -->
+    <file src="patterns/blank.png" />
+    <file src="patterns/hw_bones.png" />
+    <file src="patterns/hw_bones_e.png" />
+    <file src="patterns/hw_ecto.png" />
+    <file src="patterns/hw_ecto_e.png" />
+    <file src="patterns/hw_pumpkin.png" />
+    <file src="patterns/hw_pumpkin_e.png" />
+    <file src="patterns/hw_web.png" />
+    <file src="patterns/misc_nye.png" />
+    <file src="patterns/misc_nye_e.png" />
+    <file src="patterns/misc_valentine.png" />
+    <file src="patterns/misc_valentine_e.png" />
+    <file src="patterns/xmas_candy.png" />
+    <file src="patterns/xmas_frost.png" />
+    <file src="patterns/xmas_frost_e.png" />
+    <file src="patterns/xmas_gift.png" />
+    <file src="patterns/xmas_gift_e.png" />
+    <file src="patterns/xmas_ginger.png" />
+    <file src="patterns/xmas_lights.png" />
+    <file src="patterns/xmas_lights_e.png" />
+    <file src="patterns/xmas_sweater.png" />
+    <!-- Megrajzolt (livery) skinek: _bg = oldalsáv, _fg = matricák, _e = világítás -->
+    <file src="livery/liderc_bg.png" />
+    <file src="livery/liderc_bg_e.png" />
+    <file src="livery/liderc_fg.png" />
+    <file src="livery/liderc_fg_e.png" />
+    <file src="livery/mezeskalacs_bg.png" />
+    <file src="livery/mezeskalacs_bg_e.png" />
+    <file src="livery/mezeskalacs_fg.png" />
+    <file src="livery/mezeskalacs_fg_e.png" />
+    <file src="livery/tokkiraly_bg.png" />
+    <file src="livery/tokkiraly_bg_e.png" />
+    <file src="livery/tokkiraly_fg.png" />
+    <file src="livery/tokkiraly_fg_e.png" />
+
+    <export function="toggleWeaponSkinMenu" type="client" />
+    <export function="isWeaponSkinMenuOpen" type="client" />
+    <export function="getWeaponSkinShopList" type="client" />
+    <export function="getWeaponSkinWeaponList" type="client" />
+    <export function="isWeaponSkinOwned" type="client" />
+    <export function="giveWeaponSkin" type="server" />
+    <export function="getWeaponSkinKeys" type="server" />
+    <export function="getWeaponSkinWeaponIDs" type="server" />
+</meta>

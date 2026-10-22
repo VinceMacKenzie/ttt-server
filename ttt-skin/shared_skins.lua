@@ -12,6 +12,9 @@ SkinList = {
     {"Chiss",         1000,  27},
     {"Gran",          1000,  28},
     {"Weequay",       1000,  29},
+    {"Phoenix",       5000,  26},
+    {"Palpatine",     5000,  68},
+    {"bean",          5000,  95},   -- CS:S Phoenix (a GTA:Source single player modból)
 }
 
 SkinByID = {}

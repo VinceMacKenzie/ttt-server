@@ -1,0 +1,42 @@
+<meta>
+    <info author="you" name="ttt-chat" version="1.2" type="script" description="Cyberpunk stílusú chat emojikkal és CSS effektes nevekkel" />
+
+    <script src="server.lua" type="server" />
+    <script src="client.lua" type="client" />
+
+    <export function="getChatName" type="server" />
+    <export function="drawChatNameFx" type="client" />
+
+    <!-- CSS effektes nevek (CEF) -->
+    <file src="name.html" />
+    <file src="emoji.html" />
+
+    <!-- EFFEKTEK: minden css fájlt ide kell felvenni, a /css ablak ebből építkezik.
+         A fájlnév (kiterjesztés nélkül) lesz az effekt neve. -->
+    <file src="css/rainbow.css" />
+    <file src="css/frost.css" />
+    <file src="css/matrix.css" />
+    <file src="css/fire.css" />
+    <file src="css/neon.css" />
+    <file src="css/masked1.css" />
+    <file src="css/glitch.css" />
+    <file src="css/radioactive.css" />
+    <file src="css/pulse.css" />
+
+    <file src="admintags/tulajdonos.css" />
+    <file src="admintags/fejleszto.css" />
+    <file src="admintags/foadmin.css" />
+    <file src="admintags/admin.css" />
+
+    <file src="css/1x.webp" />
+
+    <!-- Emojik: emojis/<szöveg>/emoji.png vagy emoji.jpg (a mappanév kisbetűs!)
+         Ha a szervered nem fogadja el a wildcardot, soronként vedd fel őket, pl.:
+         <file src="emojis/kappa/emoji.png" /> -->
+    <!-- A chat beviteli sáv végén lévő emoji gomb képe: emojis/d/emoji.* (client.lua: CFG.buttonEmoji).
+         Windows-on mappanévben nem lehet ":" karakter, ezért nem "D:" a mappa neve. -->
+    <file src="emojis/*/emoji.png" />
+    <file src="emojis/*/emoji.jpg" />
+    <file src="emojis/*/emoji.gif" />
+    <file src="emojis/*/emoji.webp" />
+</meta>

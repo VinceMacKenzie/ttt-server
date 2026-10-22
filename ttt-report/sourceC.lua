@@ -9,7 +9,8 @@ local reportList = {}
 local adminColors = {
     [1] = {r = 46, g = 204, b = 113, name = "ADMIN"},       -- Innocent zöld
     [2] = {r = 52, g = 152, b = 219, name = "FŐADMIN"},     -- Detective kék
-    [3] = {r = 231, g = 76, b = 60, name = "TULAJDONOS"},   -- Traitor piros
+    [3] = {r = 75, g = 214, b = 219, name = "FEJLESZTŐ"},
+    [4] = {r = 231, g = 76, b = 60, name = "TULAJDONOS"},   -- Traitor piros
 }
 local mainCyan = tocolor(0, 195, 255, 150)
 

@@ -1,5 +1,5 @@
 -- server.lua - Discord bot híd (a bot külön Node.js app, ebben a repóban nincs benne)
-local BOT_URL = "http://127.0.0.1:3000/adminlog"
+local BOT_URL = "http://192.168.1.50:3000/adminlog"
 local HEADERS = { ["Content-Type"] = "application/json" }
 
 -- Közös küldő: MTA toJSON tömbbe csomagol ([{...}]), ezért levágjuk a [ ] zárójeleket
