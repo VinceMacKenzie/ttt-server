@@ -1,0 +1,9 @@
+<meta>
+    <info author="VinceMacKenzie" type="script" name="TTT Skill" version="1.0.0" description="Fegyver skillek: minden ölés +1 pont az adott fegyver skilljéhez" />
+    <script src="shared.lua" type="shared" />
+    <script src="server.lua" type="server" />
+    <script src="client.lua" type="client" />
+
+    <export function="giveSkill" type="server" />
+    <export function="getSkillKeys" type="server" />
+</meta>

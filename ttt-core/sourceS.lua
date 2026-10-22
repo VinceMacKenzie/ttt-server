@@ -69,7 +69,10 @@ end
 
 function startTTTRound()
     if isRoundRunning then return end
-    local players = getElementsByType("player")
+    local players = {}
+    for _, p in ipairs(getElementsByType("player")) do
+        if not getElementData(p, "banned") then players[#players + 1] = p end   -- bannolt játékos kimarad
+    end
     if #players < MIN_PLAYERS then return end
 
     isRoundRunning = true
@@ -142,7 +145,7 @@ function stopTTTRound(winner)
     triggerClientEvent(root, "ttt:updateTime", root, 0)
     for _, p in ipairs(getElementsByType("player")) do
         setElementData(p, "tttRole", false)
-        setElementFrozen(p, false)
+        if not getElementData(p, "banned") then setElementFrozen(p, false) end
     end
     outputChatBox("#ffffff[TTT] Új kör indul " .. (ROUND_RESTART_DELAY / 1000) .. " másodperc múlva...", root, 255, 255, 255, true)
     scheduleRoundStart(ROUND_RESTART_DELAY)

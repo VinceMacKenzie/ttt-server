@@ -73,7 +73,10 @@ end
 addEventHandler("onClientRender", root, function()
     if not isVisible then return end
 
-    local players = getElementsByType("player")
+    local players = {}
+    for _, pl in ipairs(getElementsByType("player")) do
+        if not getElementData(pl, "banned") then players[#players + 1] = pl end   -- bannolt játékos nem szerepel
+    end
     local now = getRealTime().timestamp
     local rowHeight = 35
     local headerHeight = 40
