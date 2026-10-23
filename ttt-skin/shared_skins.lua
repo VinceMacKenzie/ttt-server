@@ -14,7 +14,12 @@ SkinList = {
     {"Weequay",       1000,  29},
     {"Phoenix",       5000,  26},
     {"Palpatine",     5000,  68},
-    {"bean",          5000,  95},   -- CS:S Phoenix (a GTA:Source single player modból)
+    {"bean",          5000,  95},
+    {"Isaac Clarke",  5000,  96},
+    {"Joker",         5000,  97},
+    {"Scorpion",      5000,  98},
+    {"Snoop Dogg",    5000,  100},
+    {"Connor Kenway", 5000,  101}, 
 }
 
 SkinByID = {}

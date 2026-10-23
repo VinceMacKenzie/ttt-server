@@ -21,6 +21,16 @@
     <file src="skins/palpatine.dff" />
     <file src="skins/bean.dff" />
     <file src="skins/bean.txd" />
+    <file src="skins/Isaac Clarke.txd" />
+    <file src="skins/Isaac Clarke.dff" />
+    <file src="skins/Joker.txd" />
+    <file src="skins/Joker.dff" />
+    <file src="skins/Scorpion.txd" />
+    <file src="skins/Scorpion.dff" />
+    <file src="skins/Snoop Dogg.txd" />
+    <file src="skins/Snoop Dogg.dff" />
+    <file src="skins/Connor Kenway.txd" />
+    <file src="skins/Connor Kenway.dff" />
 
     <export function="toggleSkinShop" type="client" />
 </meta>

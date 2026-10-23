@@ -16,7 +16,19 @@ local savedPos = nil
 
 -- Egyedi modellek: {fájlnév, skinID}
 local replaceableSkins = {
-    {"darth_maul", 24}, {"Ezio", 25}, {"Chiss", 27}, {"Gran", 28}, {"Weequay", 29}, {"phoenix", 26}, {"palpatine", 68}, {"bean", 95},
+    {"darth_maul", 24}, 
+    {"Ezio", 25}, 
+    {"Chiss", 27}, 
+    {"Gran", 28}, 
+    {"Weequay", 29}, 
+    {"phoenix", 26}, 
+    {"palpatine", 68}, 
+    {"bean", 95}, 
+    {"Isaac Clarke", 96}, 
+    {"Joker", 97}, 
+    {"Scorpion", 98}, 
+    {"Snoop Dogg", 100}, 
+    {"Connor Kenway", 101},
 }
 
 local function rebuildOwnedList()
